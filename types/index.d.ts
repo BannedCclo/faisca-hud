@@ -20,6 +20,8 @@ export type FaiscaPrefs = {
   /** Esconde a linha nativa "✻ Pensando… (12s · tokens)" do Claude Code. */
   hidesSpinner: boolean
   metrics: Record<FaiscaMetric, boolean>
+  /** Idioma da faixa e do /faisca; `auto` segue o `language` do Claude Code. */
+  lang: 'auto' | 'pt' | 'en' | 'es'
 }
 
 export type FaiscaLimit = { percent: number; resetsAt?: string }
@@ -44,12 +46,23 @@ export type FaiscaTurn = {
   endedAt?: number
 }
 
+/**
+ * O que causou o humor, para a faixa escrever no idioma da hora: guarda o
+ * fato (ferramenta, arquivo), não o texto pronto.
+ */
+export type FaiscaDetail =
+  | { kind: 'tool'; tool: string; file?: string }
+  | { kind: 'toolFailed'; tool: string; file?: string }
+  | { kind: 'aborted' }
+  | { kind: 'refusal' }
+  | { kind: 'apiError' }
+  | { kind: 'arrived'; mascot: string }
+
 export type FaiscaActivity = {
   mood: FaiscaMood
-  /** O que a faixa escreve ao lado do humor (`Edit`, `pensando`). */
-  label: string
   /** `$.clock.now()` de quando o humor começou. */
   since: number
+  detail?: FaiscaDetail
 }
 
 declare module 'claude-code' {

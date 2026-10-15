@@ -16,9 +16,9 @@ function bodyColorAt(themeId: string, mascotId: string, row: number, col: number
 
 describe('personalização', () => {
   test('os exemplos que /faisca exemplos escreve são válidos', () => {
-    expect(parseTheme(EXAMPLE_THEME).id).toBe('meu-tema')
+    expect(parseTheme(EXAMPLE_THEME).id).toBe('my-theme')
     const m = parseMascot(EXAMPLE_MASCOT)
-    expect(m.id).toBe('meu-mascote')
+    expect(m.id).toBe('my-mascot')
     // Humor sem clipe próprio usa o idle; linha curta é completada até 11.
     expect(m.clips.tool).toEqual(m.clips.idle)
     expect(Array.from(m.clips.idle.frames[0]![0]).length).toBe(MASCOT_COLUMNS)
@@ -35,8 +35,9 @@ describe('personalização', () => {
         file('_rascunho.json', '{ ignorado'),
         file('leia-me.txt', 'ignorado'),
       ],
+      'pt',
     )
-    expect(r.themes.map(t => t.id)).toEqual(['meu-tema'])
+    expect(r.themes.map(t => t.id)).toEqual(['my-theme'])
     expect(r.mascots).toEqual([])
     expect(r.errors).toHaveLength(4)
     expect(r.errors[0]).toContain('temas/ruim.json: palette.fg')
@@ -45,9 +46,27 @@ describe('personalização', () => {
     expect(r.errors.find(e => e.startsWith('mascotes/comprido.json'))).toContain('12 caracteres')
   })
 
+  test('erros saem no idioma pedido', () => {
+    const bad = [file('x.json', { ...EXAMPLE_MASCOT, clips: {} })]
+    expect(loadCustom([], bad, 'pt').errors[0]).toContain('clips.idle é obrigatório')
+    expect(loadCustom([], bad, 'en').errors[0]).toContain('clips.idle is required')
+    expect(loadCustom([], bad, 'es').errors[0]).toContain('clips.idle es obligatorio')
+  })
+
+  test('textos por idioma em nome, descrição, rótulos e botão', () => {
+    const m = parseMascot({ ...EXAMPLE_MASCOT, labels: { idle: { pt: 'parado', en: 'still' }, sleep: 'zzz' } })
+    expect(m.labels?.idle).toEqual({ pt: 'parado', en: 'still' })
+    expect(m.labels?.sleep).toBe('zzz')
+    expect(m.petLabel).toEqual({ en: 'poke', pt: 'cutucar', es: 'pinchar' })
+    expect(() => parseMascot({ ...EXAMPLE_MASCOT, petLabel: { fr: 'toucher' } }, 'en')).toThrow('petLabel.fr')
+    // Sem petLabel, o botão usa o padrão do idioma.
+    const { petLabel: _drop, ...noPet } = EXAMPLE_MASCOT
+    expect(parseMascot(noPet).petLabel).toBeUndefined()
+  })
+
   test('validações de id, humor e hold', () => {
-    expect(() => parseMascot({ ...EXAMPLE_MASCOT, id: 'Com Espaço' })).toThrow('id')
-    expect(() => parseMascot({ ...EXAMPLE_MASCOT, clips: { ...EXAMPLE_MASCOT.clips, dancing: EXAMPLE_MASCOT.clips.idle } })).toThrow('humor desconhecido')
+    expect(() => parseMascot({ ...EXAMPLE_MASCOT, id: 'Com Espaço' }, 'pt')).toThrow('id')
+    expect(() => parseMascot({ ...EXAMPLE_MASCOT, clips: { ...EXAMPLE_MASCOT.clips, dancing: EXAMPLE_MASCOT.clips.idle } })).toThrow('unknown mood')
     expect(() => parseMascot({ ...EXAMPLE_MASCOT, clips: { idle: [{ frame: ['a'], hold: 0 }] } })).toThrow('hold')
     expect(() => parseMascot({ ...EXAMPLE_MASCOT, clips: {} })).toThrow('clips.idle')
     expect(() => parseTheme({ ...EXAMPLE_THEME, glyphs: { full: 'ab' } })).toThrow('glyphs.full')
@@ -68,8 +87,8 @@ describe('personalização', () => {
     try {
       expect(listThemes()).toHaveLength(before + 1)
       expect(getTheme('nord').name).toBe('Meu Nord')
-      expect(getTheme('meu-tema').name).toBe('Meu tema')
-      expect(listMascots().at(-1)?.id).toBe('meu-mascote')
+      expect(getTheme('my-theme').name).toEqual({ en: 'My theme', pt: 'Meu tema', es: 'Mi tema' })
+      expect(listMascots().at(-1)?.id).toBe('my-mascot')
     } finally {
       setCustomThemes([])
       setCustomMascots([])
@@ -81,15 +100,15 @@ describe('personalização', () => {
   test('tema personalizado pinta o corpo por linha; colors do mascote vence o tema', () => {
     const m = parseMascot({
       ...EXAMPLE_MASCOT,
-      colors: { 'meu-tema': { body: '#123456' } },
+      colors: { 'my-theme': { body: '#123456' } },
     })
     setCustomThemes([parseTheme(EXAMPLE_THEME)])
     setCustomMascots([m])
     try {
       const col = Array.from(frameAt(m, 'idle', 0)[0]).findIndex(ch => ch === '┌')
-      expect(bodyColorAt('meu-tema', 'meu-mascote', 0, col)).toBe(0x123456)
+      expect(bodyColorAt('my-theme', 'my-mascot', 0, col)).toBe(0x123456)
       // Em outro tema, sem override, vale a cor do tema.
-      expect(bodyColorAt('synthwave', 'meu-mascote', 0, col)).toBe(0xff3cc7)
+      expect(bodyColorAt('synthwave', 'my-mascot', 0, col)).toBe(0xff3cc7)
     } finally {
       setCustomThemes([])
       setCustomMascots([])

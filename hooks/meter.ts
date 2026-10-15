@@ -1,4 +1,5 @@
 import type { FaiscaMood, FaiscaPrefs, FaiscaTurn, FaiscaUsage } from '../types'
+import type { Strings } from './i18n.ts'
 import type { Mascot } from './mascot/clip.ts'
 import { levelColor, sample, type Hex, type Theme } from './themes/index.ts'
 import { formatDuration, formatReset, formatTokens, formatTools, formatUsd } from './usage.ts'
@@ -18,6 +19,8 @@ export type MeterInput = {
   prefs: FaiscaPrefs
   theme: Theme
   now: number
+  /** Os textos do idioma da faixa. */
+  s: Strings
 }
 
 /** Uma barra de `width` células, preenchida em gradiente até `percent`. */
@@ -59,7 +62,7 @@ function ctxLine(m: MeterInput): Line {
   if (prefs.metrics.turno) {
     if (line.length > 0) line.push(dim(theme, `  ${theme.glyphs.sep}  `))
     line.push(
-      dim(theme, 'turno '),
+      dim(theme, `${m.s.meter.turn} `),
       { text: `↑${formatTokens(turn.input + turn.cacheWrite)}`, color: theme.palette.accent2 },
       { text: ` ↓${formatTokens(turn.output)}`, color: theme.palette.accent },
       dim(theme, ` ⟲${formatTokens(turn.cacheRead)}`),
@@ -85,7 +88,7 @@ function limitsLine(m: MeterInput): Line {
     line.push({ text: formatUsd(usage.costUsd), color: theme.palette.accent2, bold: true })
   }
   if (line.length === 0 && (prefs.metrics['5h'] || prefs.metrics['7d'])) {
-    line.push(dim(theme, 'limites 5h/7d aparecem após a 1ª resposta'))
+    line.push(dim(theme, m.s.meter.limitsPending))
   }
   return line
 }
@@ -105,7 +108,7 @@ function activityLine(m: MeterInput): Line {
   return [
     { text: `${theme.glyphs.spark} `, color: theme.palette.accent },
     { text: label + (isWorking && mood !== 'happy' ? '…' : ''), color: theme.palette.fg },
-    ...(elapsed !== undefined ? [{ text: ` ${isWorking ? '' : 'em '}${formatDuration(elapsed)}`, color: theme.palette.accent2 }] : []),
+    ...(elapsed !== undefined ? [{ text: ` ${isWorking ? '' : m.s.meter.doneIn}${formatDuration(elapsed)}`, color: theme.palette.accent2 }] : []),
     ...(tools ? [dim(theme, `  ${tools}`)] : []),
   ]
 }

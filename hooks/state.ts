@@ -10,6 +10,7 @@ export const DEFAULT_PREFS: FaiscaPrefs = {
   hasAlerts: true,
   hidesSpinner: true,
   metrics: { ctx: true, turno: true, '5h': true, '7d': true, custo: true },
+  lang: 'auto',
 }
 
 export const EMPTY_TURN: FaiscaTurn = {
@@ -32,5 +33,6 @@ export function mergePrefs(saved: unknown): FaiscaPrefs {
     hasAlerts: s.hasAlerts !== false,
     hidesSpinner: s.hidesSpinner !== false,
     metrics: { ...DEFAULT_PREFS.metrics, ...(s.metrics ?? {}) },
+    lang: s.lang === 'pt' || s.lang === 'en' || s.lang === 'es' ? s.lang : 'auto',
   }
 }

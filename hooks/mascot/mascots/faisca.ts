@@ -6,8 +6,12 @@ const BODY = '  /  ~  \\  '
 export const faisca: Mascot = {
   id: 'faisca',
   name: 'Faísca',
-  description: 'espírito de terminal; cintila, solta faíscas e derrete com contexto cheio',
-  petLabel: 'carinho',
+  description: {
+    pt: 'espírito de terminal; cintila, solta faíscas e derrete com contexto cheio',
+    en: 'terminal spirit; twinkles, throws sparks and melts when context fills up',
+    es: 'espíritu de terminal; centellea, suelta chispas y se derrite con el contexto lleno',
+  },
+  petLabel: { pt: 'carinho', en: 'pet', es: 'caricia' },
   sparks: '✦✧·.*♡zZ…,;',
   face: '◕‿◔_⊙×-^ᴗᵔ˘',
   clips: {

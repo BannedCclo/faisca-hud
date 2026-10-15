@@ -1,12 +1,16 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { FaiscaActivity, FaiscaMetric, FaiscaMood, FaiscaPrefs, FaiscaUsage } from '../types'
+import type { FaiscaActivity, FaiscaDetail, FaiscaMetric, FaiscaMood, FaiscaPrefs, FaiscaUsage } from '../types'
 import { checkAlerts, readings } from './alerts.ts'
 import { EXAMPLE_MASCOT, EXAMPLE_THEME, loadCustom, type CustomFile } from './custom.ts'
+import {
+  ALL_ALIASES, LANGS, METRIC_ALIASES, detectLang, nextLang, pick, t, verbOf,
+  type Lang, type Strings,
+} from './i18n.ts'
 import { MASCOT_COLUMNS, MASCOT_ROWS, frameAt } from './mascot/clip.ts'
 import { getMascot, listMascots, nextMascot, setCustomMascots } from './mascot/index.ts'
-import { describeTool, effectiveMood, labelForMood, moodForTool } from './mascot/mood.ts'
+import { effectiveMood, fileOf, labelFor, moodForTool } from './mascot/mood.ts'
 import { mascotCells } from './mascot/raster.ts'
 import { compactLine, fullLines, type Line } from './meter.ts'
 import { DEFAULT_PREFS, EMPTY_TURN, mergePrefs } from './state.ts'
@@ -23,10 +27,7 @@ const METRICS: readonly FaiscaMetric[] = ['ctx', 'turno', '5h', '7d', 'custo']
 const prefs = atom({ plugin: 'faisca-hud', key: 'prefs' } as const, DEFAULT_PREFS)
 const usage = atom({ plugin: 'faisca-hud', key: 'usage' } as const, null as FaiscaUsage | null)
 const turn = atom({ plugin: 'faisca-hud', key: 'turn' } as const, EMPTY_TURN)
-const activity = atom(
-  { plugin: 'faisca-hud', key: 'activity' } as const,
-  { mood: 'idle', label: labelForMood('idle'), since: 0 } as FaiscaActivity,
-)
+const activity = atom({ plugin: 'faisca-hud', key: 'activity' } as const, { mood: 'idle', since: 0 } as FaiscaActivity)
 const alerted = atom({ plugin: 'faisca-hud', key: 'alerted' } as const, {} as Record<string, number>)
 
 /**
@@ -42,13 +43,19 @@ const live = {
   turnStartedAt: 0,
   shownSecond: -1,
   shownMood: 'idle' as FaiscaMood,
-  activity: { mood: 'idle', label: labelForMood('idle'), since: 0 } as FaiscaActivity,
+  activity: { mood: 'idle', since: 0 } as FaiscaActivity,
   ctxPercent: undefined as number | undefined,
   theme: getTheme(DEFAULT_PREFS.theme),
   mascot: getMascot(DEFAULT_PREFS.mascot),
+  /** O idioma do Claude Code, para `lang: 'auto'`; lido no início da sessão. */
+  detectedLang: 'en' as Lang,
 }
 
 type $ = EngineInterface
+
+function langOf(p: FaiscaPrefs): Lang {
+  return p.lang === 'auto' ? live.detectedLang : p.lang
+}
 
 /** O que a última leitura da pasta de personalização achou. */
 const custom = { dir: '', themes: [] as string[], mascots: [] as string[], errors: [] as string[] }
@@ -72,38 +79,39 @@ async function readJsonFiles($: $, dir: string): Promise<CustomFile[]> {
 }
 
 /** Lê os temas e mascotes do usuário e os põe nos registros. */
-async function loadCustomFromDisk($: $): Promise<void> {
+async function loadCustomFromDisk($: $, lang: Lang): Promise<void> {
+  const s = t(lang).custom
   try {
     custom.dir = await customDir($)
     const loaded = loadCustom(
       await readJsonFiles($, `${custom.dir}/temas`),
       await readJsonFiles($, `${custom.dir}/mascotes`),
+      lang,
     )
     setCustomThemes(loaded.themes)
     setCustomMascots(loaded.mascots)
-    custom.themes = loaded.themes.map(t => t.id)
+    custom.themes = loaded.themes.map(x => x.id)
     custom.mascots = loaded.mascots.map(m => m.id)
     custom.errors = loaded.errors
   } catch (err) {
-    custom.errors = [`não consegui ler ${custom.dir}: ${String(err)}`]
+    custom.errors = [s.cantRead(custom.dir, String(err))]
   }
-  if (custom.errors.length > 0) {
-    $.ui.toast(`✦ faisca-hud: ${custom.errors.length} personalização(ões) com erro — /faisca pasta`)
-  }
+  if (custom.errors.length > 0) $.ui.toast(s.toast(custom.errors.length))
 }
 
-function customText(): string {
-  const list = (ids: string[]) => (ids.length > 0 ? ids.join(', ') : 'nenhum')
+function customText(s: Strings): string {
+  const c = s.custom
+  const list = (ids: string[]) => (ids.length > 0 ? ids.join(', ') : c.none)
   return [
-    `Pasta de personalização: ${custom.dir}`,
-    `  temas:    ${list(custom.themes)}   (${custom.dir}/temas/*.json)`,
-    `  mascotes: ${list(custom.mascots)}   (${custom.dir}/mascotes/*.json)`,
-    ...(custom.errors.length > 0 ? ['', 'Com erro (ignorados):', ...custom.errors.map(e => `  ✗ ${e}`)] : []),
+    `${c.folder}: ${custom.dir}`,
+    `  ${c.themes}:   ${list(custom.themes)}   (${custom.dir}/temas/*.json)`,
+    `  ${c.mascots}: ${list(custom.mascots)}   (${custom.dir}/mascotes/*.json)`,
+    ...(custom.errors.length > 0 ? ['', c.withErrors, ...custom.errors.map(e => `  ✗ ${e}`)] : []),
   ].join('\n')
 }
 
-async function setMood($: $, mood: FaiscaMood, label = labelForMood(mood, live.mascot)): Promise<void> {
-  const next: FaiscaActivity = { mood, label, since: await $.clock.now() }
+async function setMood($: $, mood: FaiscaMood, detail?: FaiscaDetail): Promise<void> {
+  const next: FaiscaActivity = { mood, since: await $.clock.now(), ...(detail ? { detail } : {}) }
   live.activity = next
   await update($, activity, () => next)
 }
@@ -117,10 +125,7 @@ async function setPrefs($: $, fn: (p: FaiscaPrefs) => FaiscaPrefs): Promise<Fais
   return value
 }
 
-async function measure(
-  $: $,
-  m: Parameters<typeof toUsage>[0],
-): Promise<void> {
+async function measure($: $, m: Parameters<typeof toUsage>[0]): Promise<void> {
   const u = toUsage(m)
   live.ctxPercent = u.ctxPercent
   await update($, usage, () => u)
@@ -131,7 +136,8 @@ async function measure(
   if (fired.length > 0 || Object.keys(next).length !== Object.keys(prev).length) {
     await update($, alerted, () => next)
   }
-  for (const one of fired) $.ui.toast(one.text)
+  const a = t(langOf(p)).alerts
+  for (const one of fired) $.ui.toast(a.crossed(a.names[one.key] ?? one.key, Math.round(one.percent), one.level))
 }
 
 /** Um tick do animador: humor efetivo, redesenho se mudou, e o quadro novo. */
@@ -147,124 +153,128 @@ async function tick($: $): Promise<void> {
     $.ui.invalidate('ui.render')
   }
   if (!live.isRasterShown || live.bandId === undefined) return
-  // Dormindo, a Faísca respira devagar: um quadro a cada três ticks.
+  // Dormindo, o mascote respira devagar: um quadro a cada três ticks.
   if (mood === 'sleep' && live.tick % 3 !== 0) return
   const cells = mascotCells(live.theme, live.mascot, mood, live.tick)
   const r = await $.ui.blit({ requestId: live.bandId, key: RASTER_KEY, cells })
   if ('deny' in r && r.deny !== undefined) live.isRasterShown = false
 }
 
-function helpText(p: FaiscaPrefs): string {
-  const on = (b: boolean) => (b ? 'ligado' : 'desligado')
-  const metrics = METRICS.map(m => `${p.metrics[m] ? '✦' : '·'} ${m}`).join('  ')
+function helpText(p: FaiscaPrefs, s: Strings): string {
+  const c = s.cmd
+  const lang = langOf(p)
+  const on = (b: boolean) => (b ? c.on : c.off)
+  const metrics = METRICS.map(m => `${p.metrics[m] ? '✦' : '·'} ${s.metricNames[m]}`).join('  ')
+  const width = Math.max(...c.help.map(([k]) => k.length)) + 2
   return [
-    `✦ Faísca HUD — tema ${getTheme(p.theme).name}, ${p.isMinimized ? 'minimizada' : 'completa'}`,
-    `  mascote ${getMascot(p.mascot).name} (${on(p.hasMascot)}) · alertas ${on(p.hasAlerts)}`,
-    `  métricas: ${metrics}`,
+    c.header(pick(getTheme(p.theme).name, lang), p.isMinimized),
+    c.status(getMascot(p.mascot).name, on(p.hasMascot), on(p.hasAlerts), t(lang).langName, p.lang === 'auto'),
+    `${c.metricsLine} ${metrics}`,
     '',
-    '/faisca tema [nome]          troca o tema (sem nome: lista os temas)',
-    '/faisca min | max            uma linha só | faixa completa',
-    '/faisca mascote [nome]       troca o mascote (sem nome: lista os mascotes)',
-    '/faisca mascote on|off       mostra ou esconde o mascote',
-    '/faisca metricas a,b,…       quais métricas mostrar (ctx, turno, 5h, 7d, custo, todas)',
-    '/faisca alertas on|off       avisos ao passar de 80% e 90%',
-    '/faisca spinner on|off       mostra ou esconde a linha "Pensando…" nativa',
-    '/faisca pasta                onde ficam seus temas e mascotes, e o que foi carregado',
-    '/faisca recarregar           relê seus temas e mascotes sem reiniciar',
-    '/faisca exemplos             cria arquivos de exemplo na pasta para você copiar',
-    '/faisca reset                volta tudo ao padrão',
+    ...c.help.map(([k, v]) => `/faisca ${k.padEnd(width)}${v}`),
     '',
-    'Na faixa (ctrl+x tab ou clique para focar): t tema · b mascote · m minimizar · p interagir',
+    c.keys,
   ].join('\n')
 }
 
 async function runCommand($: $, args: string): Promise<string> {
-  const [verb = '', ...rest] = args.trim().split(/\s+/).filter(Boolean)
+  const [word = '', ...rest] = args.trim().split(/\s+/).filter(Boolean)
   const arg = rest.join(' ').toLowerCase()
-  const onOff = (s: string) => (s === 'on' ? true : s === 'off' ? false : undefined)
+  const onOff = (x: string) => (x === 'on' ? true : x === 'off' ? false : undefined)
+  const p0 = await read($, prefs)
+  const lang = langOf(p0)
+  const s = t(lang)
+  const c = s.cmd
+  const verb = word === '' ? 'help' : verbOf(word)
 
-  switch (verb.toLowerCase()) {
-    case '':
-    case 'ajuda':
+  switch (verb) {
     case 'help':
-      return helpText(await read($, prefs))
-    case 'tema':
+      return helpText(p0, s)
     case 'theme': {
       if (!arg) {
-        const current = (await read($, prefs)).theme
         return listThemes()
-          .map(t => `${t.id === current ? '✦' : '·'} ${t.id}  —  ${t.name}`)
+          .map(th => `${th.id === p0.theme ? '✦' : '·'} ${th.id}  —  ${pick(th.name, lang)}`)
           .join('\n')
       }
-      const theme = listThemes().find(t => t.id === arg || t.name.toLowerCase().startsWith(arg))
-      if (!theme) return `Tema "${arg}" não existe. Temas: ${listThemes().map(t => t.id).join(', ')}`
+      const theme = listThemes().find(th => th.id === arg || pick(th.name, lang).toLowerCase().startsWith(arg))
+      if (!theme) return c.noTheme(arg, listThemes().map(th => th.id).join(', '))
       await setPrefs($, p => ({ ...p, theme: theme.id }))
-      return `✦ Tema: ${theme.name}`
+      return c.themeSet(pick(theme.name, lang))
     }
     case 'min':
       await setPrefs($, p => ({ ...p, isMinimized: true }))
-      return '✦ Faixa minimizada (o medidor continua visível).'
+      return c.minSet
     case 'max':
       await setPrefs($, p => ({ ...p, isMinimized: false }))
-      return '✦ Faixa completa.'
-    case 'mascote':
+      return c.maxSet
     case 'mascot': {
-      const current = await read($, prefs)
       if (!arg) {
         return listMascots()
-          .map(m => `${m.id === current.mascot ? '✦' : '·'} ${m.id.padEnd(7)} ${m.name} — ${m.description}`)
+          .map(m => `${m.id === p0.mascot ? '✦' : '·'} ${m.id.padEnd(7)} ${m.name} — ${pick(m.description, lang)}`)
           .join('\n')
       }
       const v = onOff(arg)
       if (v !== undefined) {
         await setPrefs($, p => ({ ...p, hasMascot: v }))
-        const name = getMascot(current.mascot).name
-        return v ? `✦ ${name} voltou.` : `${name} saiu de cena (o medidor continua).`
+        const name = getMascot(p0.mascot).name
+        return v ? c.mascotBack(name) : c.mascotGone(name)
       }
       const mascot = listMascots().find(m => m.id === arg || m.name.toLowerCase() === arg)
-      if (!mascot) return `Mascote "${arg}" não existe. Mascotes: ${listMascots().map(m => m.id).join(', ')}`
+      if (!mascot) return c.noMascot(arg, listMascots().map(m => m.id).join(', '))
       await setPrefs($, p => ({ ...p, mascot: mascot.id, hasMascot: true }))
-      await setMood($, 'happy')
-      return `✦ Mascote: ${mascot.name} — ${mascot.description}`
+      await setMood($, 'happy', { kind: 'arrived', mascot: mascot.name })
+      return c.mascotSet(mascot.name, pick(mascot.description, lang))
     }
-    case 'alertas': {
+    case 'language': {
+      if (arg === 'auto') {
+        await setPrefs($, p => ({ ...p, lang: 'auto' }))
+        $.ui.invalidate('ui.render')
+        return t(live.detectedLang).cmd.langAuto(t(live.detectedLang).langName)
+      }
+      const chosen = LANGS.find(l => l === arg)
+      if (!chosen) return c.langUsage
+      await setPrefs($, p => ({ ...p, lang: chosen }))
+      $.ui.invalidate('ui.render')
+      return t(chosen).cmd.langSet(t(chosen).langName)
+    }
+    case 'alerts': {
       const v = onOff(arg)
-      if (v === undefined) return 'Use /faisca alertas on ou /faisca alertas off.'
+      if (v === undefined) return c.alertsUsage
       await setPrefs($, p => ({ ...p, hasAlerts: v }))
-      return v ? '✦ Alertas ligados.' : 'Alertas desligados.'
+      return v ? c.alertsOn : c.alertsOff
     }
     case 'spinner': {
       const v = onOff(arg)
-      if (v === undefined) return 'Use /faisca spinner on (mostra a linha nativa) ou off (esconde).'
+      if (v === undefined) return c.spinnerUsage
       await setPrefs($, p => ({ ...p, hidesSpinner: !v }))
       $.ui.invalidate('ui.render')
-      return v ? 'Linha "Pensando…" nativa de volta.' : '✦ Linha nativa escondida: o estado fica na faixa.'
+      return v ? c.spinnerOn : c.spinnerOff
     }
-    case 'metricas':
-    case 'métricas': {
+    case 'metrics': {
       const wanted = arg.split(/[\s,]+/).filter(Boolean)
-      if (wanted.length === 0) return 'Diga quais: /faisca metricas ctx,turno,5h,7d,custo (ou todas).'
-      const all = wanted.includes('todas')
-      const unknown = wanted.filter(w => w !== 'todas' && !METRICS.includes(w as FaiscaMetric))
-      if (unknown.length > 0) return `Métrica desconhecida: ${unknown.join(', ')}. Opções: ${METRICS.join(', ')}, todas.`
-      const metrics = Object.fromEntries(
-        METRICS.map(m => [m, all || wanted.includes(m)]),
-      ) as Record<FaiscaMetric, boolean>
+      if (wanted.length === 0) return c.metricsUsage
+      const all = wanted.some(w => ALL_ALIASES.includes(w))
+      const keyOf = (w: string) => METRICS.find(m => METRIC_ALIASES[m].includes(w))
+      const unknown = wanted.filter(w => !ALL_ALIASES.includes(w) && keyOf(w) === undefined)
+      if (unknown.length > 0) {
+        return c.metricsUnknown(unknown.join(', '), [...METRICS.map(m => s.metricNames[m]), s.allWord].join(', '))
+      }
+      const picked = new Set(wanted.map(keyOf).filter(Boolean))
+      const metrics = Object.fromEntries(METRICS.map(m => [m, all || picked.has(m)])) as Record<FaiscaMetric, boolean>
       await setPrefs($, p => ({ ...p, metrics }))
-      return `✦ Métricas: ${METRICS.filter(m => metrics[m]).join(', ') || 'nenhuma (o contexto segue no modo compacto)'}`
+      return c.metricsSet(METRICS.filter(m => metrics[m]).map(m => s.metricNames[m]).join(', ') || c.metricsNone)
     }
-    case 'pasta':
-      return customText()
-    case 'recarregar':
+    case 'folder':
+      return customText(s)
     case 'reload': {
-      await loadCustomFromDisk($)
+      await loadCustomFromDisk($, lang)
       const p = await read($, prefs)
       live.theme = getTheme(p.theme)
       live.mascot = getMascot(p.mascot)
       $.ui.invalidate('ui.render')
-      return `✦ Personalizações recarregadas.\n\n${customText()}`
+      return `${s.custom.reloaded}\n\n${customText(s)}`
     }
-    case 'exemplos': {
+    case 'examples': {
       const dir = custom.dir || (await customDir($))
       const written: string[] = []
       for (const [path, data] of [
@@ -276,24 +286,29 @@ async function runCommand($: $, args: string): Promise<string> {
         written.push(path)
       }
       return [
-        written.length > 0 ? `✦ Criei:\n${written.map(w => `  ${w}`).join('\n')}` : 'Os exemplos já existem na pasta.',
+        written.length > 0 ? `${s.custom.created}\n${written.map(w => `  ${w}`).join('\n')}` : s.custom.examplesExist,
         '',
-        'Arquivos que começam com "_" são ignorados. Copie um exemplo para um nome sem "_"',
-        '(ex. temas/meu-tema.json), edite e rode /faisca recarregar.',
+        s.custom.examplesHint,
       ].join('\n')
     }
     case 'reset':
       await setPrefs($, () => DEFAULT_PREFS)
-      return '✦ Preferências de volta ao padrão.'
+      return c.reset
     default:
-      return `Não conheço "${verb}".\n\n${helpText(await read($, prefs))}`
+      return `${c.unknownVerb(word)}\n\n${helpText(p0, s)}`
   }
 }
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await loadCustomFromDisk($)
+    try {
+      const settings = await $.settings.read()
+      live.detectedLang = detectLang(settings.language, await $.env.get('LANG'))
+    } catch {
+      live.detectedLang = 'en'
+    }
     const saved = mergePrefs(await $.store.get('prefs'))
+    await loadCustomFromDisk($, langOf(saved))
     await update($, prefs, () => saved)
     live.theme = getTheme(saved.theme)
     live.mascot = getMascot(saved.mascot)
@@ -301,8 +316,8 @@ export const register: Register = on => {
     await measure($, await $.session.usage())
     await $.command.register({
       name: COMMAND,
-      description: 'Faísca HUD: tema, modo compacto, mascote, métricas e alertas',
-      argumentHint: '[tema|mascote|min|max|metricas|alertas|spinner|pasta|recarregar|exemplos|reset]',
+      description: t(langOf(saved)).cmd.description,
+      argumentHint: `[${(['theme', 'mascot', 'language', 'min', 'max', 'metrics', 'alerts', 'spinner', 'folder', 'reload', 'examples', 'reset'] as const).map(v => t(langOf(saved)).verbs[v]).join('|')}]`,
     })
     $.clock.every(TICK_MS, () => void tick($))
 
@@ -310,7 +325,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: COMMAND }, async ($, e) => ({ text: await runCommand($, e.args) })).catch(
-    () => ({ text: 'A Faísca tropeçou nesse comando. Tente /faisca para ver as opções.' }),
+    () => ({ text: t(live.detectedLang).cmd.stumbled }),
   )
 
   on('session.measure', async ($, e, next) => {
@@ -333,18 +348,18 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
     const u = result.usage
-    if (e.agentId === undefined && u !== null) await update($, turn, t => addStep(t, u))
+    if (e.agentId === undefined && u !== null) await update($, turn, x => addStep(x, u))
     return result
   })
 
   on('tool.call', async ($, e, next) => {
     const tool = String(e.tool)
-    await update($, turn, t => ({ ...t, tools: { ...t.tools, [tool]: (t.tools[tool] ?? 0) + 1 } }))
-    const mood = moodForTool(tool)
-    const doing = describeTool(tool, e as unknown as Record<string, unknown>)
-    await setMood($, mood, doing)
+    await update($, turn, x => ({ ...x, tools: { ...x.tools, [tool]: (x.tools[tool] ?? 0) + 1 } }))
+    const file = fileOf(e as unknown as Record<string, unknown>)
+    const fact = { tool, ...(file ? { file } : {}) }
+    await setMood($, moodForTool(tool), { kind: 'tool', ...fact })
     const ran = await next(e)
-    if (ran.deny !== undefined || ran.isError) await setMood($, 'error', `falhou: ${doing}`)
+    if (ran.deny !== undefined || ran.isError) await setMood($, 'error', { kind: 'toolFailed', ...fact })
     else if (live.isWorking) await setMood($, 'thinking')
     return ran
   }).catch(($, e, next) => next(e)) // só observa: se falhar, a ferramenta segue como seria
@@ -353,12 +368,12 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       live.isWorking = false
       const endedAt = await $.clock.now()
-      await update($, turn, t => ({ ...t, endedAt }))
+      await update($, turn, x => ({ ...x, endedAt }))
       const u = e.usage
       if (u) {
         // O total do turno é a palavra final; os passos somados eram a prévia.
-        await update($, turn, t => ({
-          ...t,
+        await update($, turn, x => ({
+          ...x,
           input: u.input_tokens,
           output: u.output_tokens,
           cacheRead: u.cache_read_input_tokens,
@@ -366,8 +381,8 @@ export const register: Register = on => {
         }))
       }
       if (e.reason === 'answer') await setMood($, 'happy')
-      else if (e.reason === 'aborted') await setMood($, 'idle', 'interrompido')
-      else await setMood($, 'error', e.reason === 'refusal' ? 'recusou' : 'erro na API')
+      else if (e.reason === 'aborted') await setMood($, 'idle', { kind: 'aborted' })
+      else await setMood($, 'error', { kind: e.reason === 'refusal' ? 'refusal' : 'apiError' })
     }
     return next(e)
   })
@@ -384,8 +399,10 @@ export const register: Register = on => {
       live.isRasterShown = false
       return next(e)
     }
-    const [p, u, t, act] = await Promise.all([read($, prefs), read($, usage), read($, turn), read($, activity)])
+    const [p, u, tr, act] = await Promise.all([read($, prefs), read($, usage), read($, turn), read($, activity)])
     const now = await $.clock.now()
+    const lang = langOf(p)
+    const s = t(lang)
     const theme = getTheme(p.theme)
     const mascotDef = getMascot(p.mascot)
     live.theme = theme
@@ -394,13 +411,13 @@ export const register: Register = on => {
     live.ctxPercent = u?.ctxPercent
     live.isWorking = e.props.isWorking
     // Depois de um reload no meio do turno, o relógio volta a contar do início certo.
-    if (t.startedAt !== undefined) live.turnStartedAt = t.startedAt
+    if (tr.startedAt !== undefined) live.turnStartedAt = tr.startedAt
     live.bandId = e.requestId
 
     const mood = effectiveMood(act, now, u?.ctxPercent, e.props.isWorking)
     live.shownMood = mood
-    const label = mood === act.mood ? act.label : labelForMood(mood, mascotDef)
-    const input = { usage: u, turn: t, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now }
+    const label = labelFor(act, mood, mascotDef, lang)
+    const input = { usage: u, turn: tr, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now, s }
     const isCompact = p.isMinimized || e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < 3
 
     const els = $.ui.resolve(e)
@@ -409,9 +426,9 @@ export const register: Register = on => {
 
     const drawLine = (line: Line) => (
       <Text wrap="truncate-end">
-        {line.map(s => (
-          <Text color={s.color} bold={s.bold}>
-            {s.text}
+        {line.map(seg => (
+          <Text color={seg.color} bold={seg.bold}>
+            {seg.text}
           </Text>
         ))}
       </Text>
@@ -419,11 +436,13 @@ export const register: Register = on => {
 
     const toggleMin = () => void setPrefs($, x => ({ ...x, isMinimized: !x.isMinimized }))
     const cycleTheme = () => void setPrefs($, x => ({ ...x, theme: nextTheme(x.theme).id }))
+    const cycleLang = () => void setPrefs($, x => ({ ...x, lang: nextLang(langOf(x)) }))
     const pet = () => void setMood($, 'pet')
     const cycleMascot = async () => {
       const chosen = await setPrefs($, x => ({ ...x, mascot: nextMascot(x.mascot).id, hasMascot: true }))
-      await setMood($, 'happy', `${getMascot(chosen.mascot).name} na área`)
+      await setMood($, 'happy', { kind: 'arrived', mascot: getMascot(chosen.mascot).name })
     }
+    const langButton = <Button key="idioma" plain hotkey="l" label={lang.toUpperCase()} dimColor onPress={cycleLang} />
 
     if (isCompact) {
       live.isRasterShown = false
@@ -431,7 +450,8 @@ export const register: Register = on => {
         <Box flexDirection="row" justifyContent="space-between">
           {drawLine(compactLine(input))}
           <Box flexDirection="row" gap={1}>
-            <Button key="tema" plain hotkey="t" label="tema" dimColor onPress={cycleTheme} />
+            <Button key="tema" plain hotkey="t" label={s.buttons.theme} dimColor onPress={cycleTheme} />
+            {langButton}
             <Button key="min" plain hotkey="m" label={p.isMinimized ? 'max' : 'min'} dimColor onPress={toggleMin} />
           </Box>
         </Box>
@@ -459,6 +479,7 @@ export const register: Register = on => {
 
     const lines = fullLines(input)
     const last = lines.pop() ?? []
+    const petLabel = mascotDef.petLabel !== undefined ? pick(mascotDef.petLabel, lang) : s.buttons.pet
 
     return (
       <Box flexDirection="row" gap={1}>
@@ -468,10 +489,11 @@ export const register: Register = on => {
           <Box flexDirection="row" justifyContent="space-between">
             {drawLine(last)}
             <Box flexDirection="row" gap={1}>
-              <Button key="tema" plain hotkey="t" label="tema" dimColor onPress={cycleTheme} />
-              <Button key="mascote" plain hotkey="b" label="mascote" dimColor onPress={() => void cycleMascot()} />
+              <Button key="tema" plain hotkey="t" label={s.buttons.theme} dimColor onPress={cycleTheme} />
+              <Button key="mascote" plain hotkey="b" label={s.buttons.mascot} dimColor onPress={() => void cycleMascot()} />
+              {langButton}
               <Button key="min" plain hotkey="m" label="min" dimColor onPress={toggleMin} />
-              {p.hasMascot ? <Button key="carinho" plain hotkey="p" label={mascotDef.petLabel} dimColor onPress={pet} /> : null}
+              {p.hasMascot ? <Button key="carinho" plain hotkey="p" label={petLabel} dimColor onPress={pet} /> : null}
             </Box>
           </Box>
         </Box>

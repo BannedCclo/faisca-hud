@@ -1,4 +1,5 @@
 import type { FaiscaMood } from '../types'
+import { LANGS, t, type Lang, type Strings, type Text } from './i18n.ts'
 import { MASCOT_COLUMNS, MASCOT_ROWS, type Clip, type Frame, type Mascot } from './mascot/clip.ts'
 import type { Hex, MascotCell, Theme } from './themes/index.ts'
 
@@ -12,6 +13,8 @@ export const MOODS: readonly FaiscaMood[] = ['idle', 'sleep', 'thinking', 'tool'
 
 export type CustomFile = { name: string; text: string }
 export type Loaded = { themes: Theme[]; mascots: Mascot[]; errors: string[] }
+
+type Err = Strings['custom']['err']
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 
@@ -28,69 +31,78 @@ export function isNarrow(ch: string): boolean {
 
 class Invalid extends Error {}
 
-function fail(msg: string): never {
-  throw new Invalid(msg)
-}
-
-function obj(v: unknown, where: string): Record<string, unknown> {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) fail(`${where} precisa ser um objeto`)
-  return v as Record<string, unknown>
-}
-
-function str(v: unknown, where: string): string {
-  if (typeof v !== 'string' || v.length === 0) fail(`${where} precisa ser um texto`)
-  return v
-}
-
-function optStr(v: unknown, where: string): string | undefined {
-  return v === undefined ? undefined : str(v, where)
-}
-
-function hex(v: unknown, where: string): Hex {
-  if (typeof v !== 'string' || !HEX.test(v)) fail(`${where} precisa ser uma cor "#rrggbb"`)
-  return v.toLowerCase() as Hex
-}
-
-function hexList(v: unknown, where: string): Hex[] {
-  const list = typeof v === 'string' ? [v] : Array.isArray(v) ? v : fail(`${where} precisa ser uma cor ou uma lista de cores`)
-  if (list.length === 0) fail(`${where} está vazio`)
-  return list.map((c, i) => hex(c, `${where}[${i}]`))
-}
-
-function id(v: unknown, where: string): string {
-  const s = str(v, where)
-  if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(s)) fail(`${where} "${s}": use letras minúsculas, números e "-" (até 32)`)
-  return s
-}
-
-function glyph(v: unknown, where: string, fallback: string): string {
-  if (v === undefined) return fallback
-  const s = str(v, where)
-  const chars = Array.from(s)
-  if (chars.length !== 1 || !isNarrow(chars[0]!)) fail(`${where} precisa ser um único caractere de largura 1`)
-  return s
+/** Os validadores de campo, falando no idioma de `err`. */
+function fields(err: Err) {
+  const fail = (msg: string): never => {
+    throw new Invalid(msg)
+  }
+  const obj = (v: unknown, w: string): Record<string, unknown> => {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) fail(err.object(w))
+    return v as Record<string, unknown>
+  }
+  const str = (v: unknown, w: string): string => {
+    if (typeof v !== 'string' || v.length === 0) fail(err.text(w))
+    return v as string
+  }
+  const optStr = (v: unknown, w: string): string | undefined => (v === undefined ? undefined : str(v, w))
+  /** Um texto: uma string, ou `{ "pt": "…", "en": "…", "es": "…" }`. */
+  const text = (v: unknown, w: string): Text => {
+    if (typeof v === 'string') return str(v, w)
+    const o = obj(v, w)
+    const out: Partial<Record<Lang, string>> = {}
+    for (const [k, val] of Object.entries(o)) {
+      if (!LANGS.includes(k as Lang)) fail(err.text(`${w}.${k}`))
+      out[k as Lang] = str(val, `${w}.${k}`)
+    }
+    if (Object.keys(out).length === 0) fail(err.empty(w))
+    return out
+  }
+  const optText = (v: unknown, w: string): Text | undefined => (v === undefined ? undefined : text(v, w))
+  const hex = (v: unknown, w: string): Hex => {
+    if (typeof v !== 'string' || !HEX.test(v)) fail(err.hex(w))
+    return (v as string).toLowerCase() as Hex
+  }
+  const hexList = (v: unknown, w: string): Hex[] => {
+    const list = typeof v === 'string' ? [v] : Array.isArray(v) ? v : fail(err.colorOrList(w))
+    if (list.length === 0) fail(err.empty(w))
+    return list.map((c, i) => hex(c, `${w}[${i}]`))
+  }
+  const id = (v: unknown, w: string): string => {
+    const s = str(v, w)
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(s)) fail(err.id(w, s))
+    return s
+  }
+  const glyph = (v: unknown, w: string, fallback: string): string => {
+    if (v === undefined) return fallback
+    const s = str(v, w)
+    const chars = Array.from(s)
+    if (chars.length !== 1 || !isNarrow(chars[0]!)) fail(err.glyph(w))
+    return s
+  }
+  return { fail, obj, str, optStr, text, optText, hex, hexList, id, glyph }
 }
 
 /** Um tema a partir do JSON do usuário. */
-export function parseTheme(raw: unknown): Theme {
-  const j = obj(raw, 'o tema')
-  const p = obj(j.palette, 'palette')
+export function parseTheme(raw: unknown, lang: Lang = 'en'): Theme {
+  const f = fields(t(lang).custom.err)
+  const j = f.obj(raw, 'theme')
+  const p = f.obj(j.palette, 'palette')
   const palette = {
-    fg: hex(p.fg, 'palette.fg'),
-    dim: hex(p.dim, 'palette.dim'),
-    accent: hex(p.accent, 'palette.accent'),
-    accent2: hex(p.accent2 ?? p.accent, 'palette.accent2'),
-    ok: hex(p.ok, 'palette.ok'),
-    warn: hex(p.warn, 'palette.warn'),
-    danger: hex(p.danger, 'palette.danger'),
+    fg: f.hex(p.fg, 'palette.fg'),
+    dim: f.hex(p.dim, 'palette.dim'),
+    accent: f.hex(p.accent, 'palette.accent'),
+    accent2: f.hex(p.accent2 ?? p.accent, 'palette.accent2'),
+    ok: f.hex(p.ok, 'palette.ok'),
+    warn: f.hex(p.warn, 'palette.warn'),
+    danger: f.hex(p.danger, 'palette.danger'),
   }
-  const g = j.glyphs === undefined ? {} : obj(j.glyphs, 'glyphs')
-  const m = j.mascot === undefined ? {} : obj(j.mascot, 'mascot')
-  const body = m.body === undefined ? [palette.accent] : hexList(m.body, 'mascot.body')
-  const face = m.face === undefined ? palette.fg : hex(m.face, 'mascot.face')
-  const spark = m.spark === undefined ? [palette.accent2] : hexList(m.spark, 'mascot.spark')
-  const error = m.error === undefined ? palette.danger : hex(m.error, 'mascot.error')
-  const errorSpark = m.errorSpark === undefined ? palette.dim : hex(m.errorSpark, 'mascot.errorSpark')
+  const g = j.glyphs === undefined ? {} : f.obj(j.glyphs, 'glyphs')
+  const m = j.mascot === undefined ? {} : f.obj(j.mascot, 'mascot')
+  const body = m.body === undefined ? [palette.accent] : f.hexList(m.body, 'mascot.body')
+  const face = m.face === undefined ? palette.fg : f.hex(m.face, 'mascot.face')
+  const spark = m.spark === undefined ? [palette.accent2] : f.hexList(m.spark, 'mascot.spark')
+  const error = m.error === undefined ? palette.danger : f.hex(m.error, 'mascot.error')
+  const errorSpark = m.errorSpark === undefined ? palette.dim : f.hex(m.errorSpark, 'mascot.errorSpark')
 
   const mascotColor = (cell: MascotCell): Hex => {
     if (cell.mood === 'error') return cell.part === 'spark' ? errorSpark : error
@@ -101,88 +113,96 @@ export function parseTheme(raw: unknown): Theme {
   }
 
   return {
-    id: id(j.id, 'id'),
-    name: str(j.name, 'name'),
+    id: f.id(j.id, 'id'),
+    name: f.text(j.name, 'name'),
     palette,
-    barGradient: j.barGradient === undefined ? [palette.accent2, palette.accent] : hexList(j.barGradient, 'barGradient'),
+    barGradient: j.barGradient === undefined ? [palette.accent2, palette.accent] : f.hexList(j.barGradient, 'barGradient'),
     glyphs: {
-      full: glyph(g.full, 'glyphs.full', '▰'),
-      empty: glyph(g.empty, 'glyphs.empty', '▱'),
-      sep: glyph(g.sep, 'glyphs.sep', '·'),
-      spark: glyph(g.spark, 'glyphs.spark', '✦'),
+      full: f.glyph(g.full, 'glyphs.full', '▰'),
+      empty: f.glyph(g.empty, 'glyphs.empty', '▱'),
+      sep: f.glyph(g.sep, 'glyphs.sep', '·'),
+      spark: f.glyph(g.spark, 'glyphs.spark', '✦'),
     },
     mascotColor,
   }
 }
 
-function frame(v: unknown, where: string): Frame {
-  if (!Array.isArray(v) || v.length === 0 || v.length > MASCOT_ROWS) fail(`${where} precisa ter de 1 a ${MASCOT_ROWS} linhas`)
-  const rows = v.map((line, r) => {
-    if (typeof line !== 'string') fail(`${where}[${r}] precisa ser um texto`)
-    const chars = Array.from(line)
-    if (chars.length > MASCOT_COLUMNS) fail(`${where}[${r}] tem ${chars.length} caracteres; o máximo é ${MASCOT_COLUMNS}`)
-    const bad = chars.find(ch => !isNarrow(ch))
-    if (bad !== undefined) fail(`${where}[${r}]: "${bad}" não tem largura 1 no terminal`)
-    return line + ' '.repeat(MASCOT_COLUMNS - chars.length)
-  })
-  while (rows.length < MASCOT_ROWS) rows.push(' '.repeat(MASCOT_COLUMNS))
-  return rows as unknown as Frame
-}
-
-function clipOf(v: unknown, where: string): Clip {
-  if (!Array.isArray(v) || v.length === 0) fail(`${where} precisa ser uma lista de quadros`)
-  const frames: Frame[] = []
-  const holds: number[] = []
-  v.forEach((step, i) => {
-    const s = obj(step, `${where}[${i}]`)
-    frames.push(frame(s.frame, `${where}[${i}].frame`))
-    const hold = s.hold === undefined ? 2 : s.hold
-    if (typeof hold !== 'number' || !Number.isInteger(hold) || hold < 1 || hold > 200) fail(`${where}[${i}].hold precisa ser um inteiro de 1 a 200`)
-    holds.push(hold)
-  })
-  return { frames, holds }
-}
-
 /** Um mascote a partir do JSON do usuário; humores ausentes usam o `idle`. */
-export function parseMascot(raw: unknown): Mascot {
-  const j = obj(raw, 'o mascote')
-  const clipsIn = obj(j.clips, 'clips')
-  if (clipsIn.idle === undefined) fail('clips.idle é obrigatório')
+export function parseMascot(raw: unknown, lang: Lang = 'en'): Mascot {
+  const err = t(lang).custom.err
+  const f = fields(err)
+
+  const frame = (v: unknown, w: string): Frame => {
+    if (!Array.isArray(v) || v.length === 0 || v.length > MASCOT_ROWS) f.fail(err.rows(w, MASCOT_ROWS))
+    const rows = (v as unknown[]).map((line, r) => {
+      if (typeof line !== 'string') f.fail(err.text(`${w}[${r}]`))
+      const chars = Array.from(line as string)
+      if (chars.length > MASCOT_COLUMNS) f.fail(err.tooLong(`${w}[${r}]`, chars.length, MASCOT_COLUMNS))
+      const bad = chars.find(ch => !isNarrow(ch))
+      if (bad !== undefined) f.fail(err.notNarrow(`${w}[${r}]`, bad))
+      return (line as string) + ' '.repeat(MASCOT_COLUMNS - chars.length)
+    })
+    while (rows.length < MASCOT_ROWS) rows.push(' '.repeat(MASCOT_COLUMNS))
+    return rows as unknown as Frame
+  }
+
+  const clipOf = (v: unknown, w: string): Clip => {
+    if (!Array.isArray(v) || v.length === 0) f.fail(err.frames(w))
+    const frames: Frame[] = []
+    const holds: number[] = []
+    ;(v as unknown[]).forEach((step, i) => {
+      const s = f.obj(step, `${w}[${i}]`)
+      frames.push(frame(s.frame, `${w}[${i}].frame`))
+      const hold = s.hold === undefined ? 2 : s.hold
+      if (typeof hold !== 'number' || !Number.isInteger(hold) || hold < 1 || hold > 200) f.fail(err.hold(`${w}[${i}].hold`))
+      holds.push(hold as number)
+    })
+    return { frames, holds }
+  }
+
+  const j = f.obj(raw, 'mascot')
+  const clipsIn = f.obj(j.clips, 'clips')
+  if (clipsIn.idle === undefined) f.fail(err.idleRequired)
   const unknownMood = Object.keys(clipsIn).find(k => !MOODS.includes(k as FaiscaMood))
-  if (unknownMood) fail(`clips.${unknownMood}: humor desconhecido (use ${MOODS.join(', ')})`)
+  if (unknownMood) f.fail(err.unknownMood(unknownMood, MOODS.join(', ')))
   const idle = clipOf(clipsIn.idle, 'clips.idle')
   const clips = Object.fromEntries(
     MOODS.map(mood => [mood, clipsIn[mood] === undefined ? idle : clipOf(clipsIn[mood], `clips.${mood}`)]),
   ) as Record<FaiscaMood, Clip>
 
-  const name = str(j.name, 'name')
-  const miniIn = j.mini === undefined ? {} : obj(j.mini, 'mini')
-  const miniIdle = optStr(miniIn.idle, 'mini.idle') ?? name
-  const mini = Object.fromEntries(MOODS.map(mood => [mood, optStr(miniIn[mood], `mini.${mood}`) ?? miniIdle])) as Record<FaiscaMood, string>
+  const name = f.str(j.name, 'name')
+  const miniIn = j.mini === undefined ? {} : f.obj(j.mini, 'mini')
+  const miniIdle = f.optStr(miniIn.idle, 'mini.idle') ?? name
+  const mini = Object.fromEntries(MOODS.map(mood => [mood, f.optStr(miniIn[mood], `mini.${mood}`) ?? miniIdle])) as Record<FaiscaMood, string>
 
-  const labelsIn = j.labels === undefined ? {} : obj(j.labels, 'labels')
-  const labels: Partial<Record<FaiscaMood, string>> = {}
+  const labelsIn = j.labels === undefined ? {} : f.obj(j.labels, 'labels')
+  const labels: Partial<Record<FaiscaMood, Text>> = {}
   for (const mood of MOODS) {
-    const l = optStr(labelsIn[mood], `labels.${mood}`)
+    const l = f.optText(labelsIn[mood], `labels.${mood}`)
     if (l !== undefined) labels[mood] = l
   }
 
-  const colorsIn = j.colors === undefined ? {} : obj(j.colors, 'colors')
+  const colorsIn = j.colors === undefined ? {} : f.obj(j.colors, 'colors')
   const colors: NonNullable<Mascot['colors']> = {}
   for (const [themeId, partsRaw] of Object.entries(colorsIn)) {
-    const parts = obj(partsRaw, `colors.${themeId}`)
+    const parts = f.obj(partsRaw, `colors.${themeId}`)
     const out: Partial<Record<'body' | 'face' | 'spark', Hex>> = {}
     for (const part of ['body', 'face', 'spark'] as const) {
-      if (parts[part] !== undefined) out[part] = hex(parts[part], `colors.${themeId}.${part}`)
+      if (parts[part] !== undefined) out[part] = f.hex(parts[part], `colors.${themeId}.${part}`)
     }
     colors[themeId] = out
   }
 
+  const petLabel = f.optText(j.petLabel, 'petLabel')
   return {
-    id: id(j.id, 'id'),
+    id: f.id(j.id, 'id'),
     name,
-    description: optStr(j.description, 'description') ?? 'mascote personalizado',
-    petLabel: optStr(j.petLabel, 'petLabel') ?? 'interagir',
+    description: f.optText(j.description, 'description') ?? {
+      pt: t('pt').custom.defaultDescription,
+      en: t('en').custom.defaultDescription,
+      es: t('es').custom.defaultDescription,
+    },
+    ...(petLabel !== undefined ? { petLabel } : {}),
     sparks: typeof j.sparks === 'string' ? j.sparks : '✦✧·*',
     face: typeof j.face === 'string' ? j.face : '',
     labels,
@@ -193,28 +213,29 @@ export function parseMascot(raw: unknown): Mascot {
 }
 
 /** Lê os arquivos de temas e de mascotes; um arquivo inválido vira uma linha de erro. */
-export function loadCustom(themeFiles: readonly CustomFile[], mascotFiles: readonly CustomFile[]): Loaded {
+export function loadCustom(themeFiles: readonly CustomFile[], mascotFiles: readonly CustomFile[], lang: Lang = 'en'): Loaded {
+  const err = t(lang).custom.err
   const out: Loaded = { themes: [], mascots: [], errors: [] }
-  const each = <T>(kind: string, files: readonly CustomFile[], parse: (raw: unknown) => T, push: (t: T) => void) => {
+  const each = <T>(kind: string, files: readonly CustomFile[], parse: (raw: unknown) => T, push: (v: T) => void) => {
     for (const file of files) {
       if (!file.name.endsWith('.json') || file.name.startsWith('_')) continue
       try {
         push(parse(JSON.parse(file.text)))
-      } catch (err) {
-        const why = err instanceof Invalid ? err.message : err instanceof SyntaxError ? `JSON inválido (${err.message})` : String(err)
+      } catch (e) {
+        const why = e instanceof Invalid ? e.message : e instanceof SyntaxError ? err.json(e.message) : String(e)
         out.errors.push(`${kind}/${file.name}: ${why}`)
       }
     }
   }
-  each('temas', themeFiles, parseTheme, t => out.themes.push(t))
-  each('mascotes', mascotFiles, parseMascot, m => out.mascots.push(m))
+  each('temas', themeFiles, raw => parseTheme(raw, lang), v => out.themes.push(v))
+  each('mascotes', mascotFiles, raw => parseMascot(raw, lang), v => out.mascots.push(v))
   return out
 }
 
 /** Os arquivos de exemplo que `/faisca exemplos` escreve na pasta. */
 export const EXAMPLE_THEME = {
-  id: 'meu-tema',
-  name: 'Meu tema',
+  id: 'my-theme',
+  name: { en: 'My theme', pt: 'Meu tema', es: 'Mi tema' },
   palette: { fg: '#e6e6e6', dim: '#6b6b6b', accent: '#ff8c42', accent2: '#4fc3f7', ok: '#81c784', warn: '#ffd54f', danger: '#e57373' },
   barGradient: ['#4fc3f7', '#ff8c42'],
   glyphs: { full: '█', empty: '░', sep: '·', spark: '✦' },
@@ -222,13 +243,16 @@ export const EXAMPLE_THEME = {
 }
 
 export const EXAMPLE_MASCOT = {
-  id: 'meu-mascote',
-  name: 'Quadrado',
-  description: 'um bloquinho que pisca',
-  petLabel: 'cutucar',
+  id: 'my-mascot',
+  name: 'Cube',
+  description: { en: 'a little block that blinks', pt: 'um bloquinho que pisca', es: 'un bloquecito que parpadea' },
+  petLabel: { en: 'poke', pt: 'cutucar', es: 'pinchar' },
   sparks: '*·!?z',
   face: 'o-^x',
-  labels: { thinking: 'matutando', happy: 'feito!' },
+  labels: {
+    thinking: { en: 'pondering', pt: 'matutando', es: 'cavilando' },
+    happy: { en: 'done!', pt: 'feito!', es: '¡hecho!' },
+  },
   clips: {
     idle: [
       { frame: ['   ┌───┐', '   │o o│', '   └───┘'], hold: 12 },

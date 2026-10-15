@@ -20,7 +20,7 @@ test('a faixa desenha medidor, mascote e botões em toda superfície', async ($,
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ surface, ...band(110) })
     expect(await ui.find({ type: 'Text', text: /ctx/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /turno/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /turn/ })).toBeDefined()
     expect(await ui.find({ key: 'tema' })).toBeDefined()
     expect(await ui.find({ key: 'carinho' })).toBeDefined()
     if (surface === 'terminal') expect(await ui.find({ type: 'Raster', key: 'faisca' })).toBeDefined()
@@ -70,10 +70,10 @@ test('trocar o tema e interagir redesenham sem recusa', async ($, on) => {
   mock.store(on)
   const ui = await $.ui.mount({ surface: 'terminal', ...band(110) })
   await ui.press({ key: 'tema' })
-  // O padrão é o robô Bit: o botão de interação é "calibrar".
-  expect((await ui.find({ key: 'carinho' }))?.text).toContain('calibrar')
+  // O padrão é o robô Bit e, sem settings, o inglês: o botão é "calibrate".
+  expect((await ui.find({ key: 'carinho' }))?.text).toContain('calibrate')
   await ui.press({ key: 'carinho' })
-  expect(await ui.find({ type: 'Text', text: /recalibrado/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /recalibrated/ })).toBeDefined()
   await ui.drawn()
   await ui.unmount()
 })
@@ -90,7 +90,42 @@ test('o botão mascote percorre todos e cada um desenha sem recusa', async ($, o
     labels.push((await ui.find({ key: 'carinho' }))?.text ?? '')
   }
   expect(labels.map(l => l.replace(/^p:\s*/, ''))).toEqual(
-    expect.arrayContaining([expect.stringContaining('rugir'), expect.stringContaining('saudar'), expect.stringContaining('carinho'), expect.stringContaining('calibrar')]),
+    expect.arrayContaining([expect.stringContaining('roar'), expect.stringContaining('salute'), expect.stringContaining('pet'), expect.stringContaining('calibrate')]),
   )
+  await ui.unmount()
+})
+
+test('o botão de idioma alterna EN → ES → PT e traduz a faixa na hora', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  mock.store(on)
+  const ui = await $.ui.mount({ surface: 'terminal', ...band(110) })
+  const label = async (key: string) => (await ui.find({ key }))?.text ?? ''
+  expect(await label('idioma')).toContain('EN')
+  expect(await label('mascote')).toContain('mascot')
+
+  await ui.press({ key: 'idioma' })
+  expect(await label('idioma')).toContain('ES')
+  expect(await label('mascote')).toContain('mascota')
+  expect(await label('carinho')).toContain('calibrar')
+  expect(await ui.find({ type: 'Text', text: /ahorro de energía/ })).toBeDefined()
+
+  await ui.press({ key: 'idioma' })
+  expect(await label('idioma')).toContain('PT')
+  expect(await label('mascote')).toContain('mascote')
+  expect(await ui.find({ type: 'Text', text: /modo economia/ })).toBeDefined()
+
+  await ui.press({ key: 'idioma' })
+  expect(await label('idioma')).toContain('EN')
+  expect(await ui.find({ type: 'Text', text: /power saving/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('modo compacto também tem o botão de idioma', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  mock.store(on)
+  const ui = await $.ui.mount({ surface: 'terminal', ...band(50) })
+  expect(await ui.find({ key: 'idioma' })).toBeDefined()
+  await ui.press({ key: 'idioma' })
+  expect((await ui.find({ key: 'tema' }))?.text).toContain('tema')
   await ui.unmount()
 })

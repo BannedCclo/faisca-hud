@@ -1,4 +1,5 @@
 import type { FaiscaMood } from '../../types'
+import type { Text } from '../i18n.ts'
 
 import { synthwave } from './synthwave.ts'
 import { crt } from './crt.ts'
@@ -12,7 +13,8 @@ export type Hex = `#${string}`
 
 export type Theme = {
   id: string
-  name: string
+  /** Por idioma (`{ pt, en, es }`) ou um nome só. */
+  name: Text
   palette: {
     fg: Hex
     dim: Hex

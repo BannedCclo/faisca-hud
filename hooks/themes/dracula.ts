@@ -21,7 +21,7 @@ function mascotColor(cell: MascotCell): `#${string}` {
 
 export const dracula: Theme = {
   id: 'dracula',
-  name: 'Drácula',
+  name: { pt: 'Drácula', en: 'Dracula', es: 'Drácula' },
   palette: {
     fg: FG,
     dim: '#6272a4',

@@ -16,7 +16,7 @@ function mascotColor(cell: MascotCell): `#${string}` {
 
 export const crt: Theme = {
   id: 'crt',
-  name: 'CRT Fósforo',
+  name: { pt: 'CRT Fósforo', en: 'CRT Phosphor', es: 'CRT Fósforo' },
   palette: {
     fg: '#b6ffc8',
     dim: '#2f7a45',

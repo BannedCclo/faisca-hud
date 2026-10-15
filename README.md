@@ -1,162 +1,189 @@
 # ✦ faisca-hud
 
-Mod de interface para o [Claude Code](https://claude.com/claude-code): uma
-faixa logo acima do prompt com o **medidor de tokens sempre visível** e um
-**mascote ASCII animado** que reage ao que o Claude está fazendo — pensando,
-lendo, editando, terminando ou errando. 6 temas, 4 mascotes, tudo trocável.
+A UI mod for [Claude Code](https://claude.com/claude-code): a band right above
+the prompt with an **always-visible token meter** and an **animated ASCII
+mascot** that reacts to what Claude is doing — thinking, reading, editing,
+finishing or failing. 6 themes, 4 mascots, 3 languages, all switchable — and
+you can add your own themes and mascots without touching the code.
 
 ```
-  ┌─┴─┐     ctx ▰▰▰▰▰▰▱▱▱▱ 58%  116k/200k  ·  turno ↑12.1k ↓2.3k ⟲98k
+  ┌─┴─┐     ctx ▰▰▰▰▰▰▱▱▱▱ 58%  116k/200k  ·  turn ↑12.1k ↓2.3k ⟲98k
   │■ ■│     5h ▰▰▱▱▱▱▱▱ 21% 2h14   7d ▰▱▱▱▱▱▱▱ 9% 4d   $1.82
-  └┬─┬┘     ✦ editando meter.ts… 47s  Edit ×2  Bash ×3   t: tema  b: mascote  m: min  p: calibrar
+  └┬─┬┘     ✦ editing meter.ts… 47s  Edit ×2  Bash ×3   t: theme  b: mascot  l: EN  m: min  p: calibrate
    Bit
 ```
 
-> Projeto independente da comunidade, sem vínculo com a Anthropic.
+> Independent community project, not affiliated with Anthropic.
 
-## Instalação
+## Install
 
-Requer **Claude Code 2.1.300 ou mais novo** (a API de mods é *early access* e
-pode mudar entre versões).
+Requires **Claude Code 2.1.300 or newer** (the mod API is *early access* and
+may change between versions).
 
-No prompt de uma sessão do Claude Code no terminal:
+At the prompt of a Claude Code terminal session:
 
 ```
 /plugin install faisca-hud --marketplace BannedCclo/faisca-hud
 ```
 
-Responda `y` para adicionar o marketplace e escolha o escopo (usuário é o
-padrão). A faixa aparece na hora.
+Answer `y` to add the marketplace and pick a scope (user is the default). The
+band shows up right away.
 
-Pelo shell:
+From a shell:
 
 ```
 claude plugin install faisca-hud --marketplace BannedCclo/faisca-hud
 ```
 
-No app desktop (onde `/plugin` não roda): clique no **+** ao lado da caixa de
-prompt → **Plugins** → **Add marketplace** com `BannedCclo/faisca-hud` → **Add
-plugin**.
+In the desktop app (where `/plugin` doesn't run): click **+** next to the
+prompt box → **Plugins** → **Add marketplace** with `BannedCclo/faisca-hud` →
+**Add plugin**.
 
-Para começar: digite `/faisca` para ver as opções.
+To update: `claude plugin update faisca-hud`. To get started, type `/faisca`.
 
-## O que mostra
+## Languages
 
-| Métrica | De onde vem |
+The band and `/faisca` speak **Português**, **English** and **Español**. By
+default (`auto`) the mod follows the `language` setting of Claude Code (falling
+back to `LANG`, then English). Switch with `l` on the band (cycles PT → EN →
+ES) or `/faisca language pt|en|es|auto`. Subcommands work in any of the three
+languages (`/faisca theme`, `/faisca tema`, …).
+
+## What it shows
+
+| Metric | Source |
 |---|---|
-| `ctx` — janela de contexto (% e tokens/limite) | `$.session.usage()` / `session.measure` |
-| `turno` — ↑ entrada (+ escrita de cache), ↓ saída, ⟲ leitura de cache | cada `turn.step` ao vivo; `turn.complete` fecha o total |
-| `5h` / `7d` — limites da assinatura + tempo até resetar | `rateLimits` da última resposta |
-| `custo` — US$ da sessão | `cost.usd` |
+| `ctx` — context window (% and tokens/limit) | `$.session.usage()` / `session.measure` |
+| `turn` — ↑ input (+ cache writes), ↓ output, ⟲ cache reads | every `turn.step` live; `turn.complete` sets the final total |
+| `5h` / `7d` — subscription limits + time until reset | `rateLimits` of the latest response |
+| `cost` — session cost in US$ | `cost.usd` |
 
-A barra esquenta de cor a partir de 70% e 90%. Toasts avisam ao cruzar 80% e
-90% (contexto, 5h, 7d), uma vez por cruzamento — rearmam quando o valor cai
-(ex. depois de `/compact`).
+Bars change color at 70% and 90%. Toasts warn when you cross 80% and 90%
+(context, 5h, 7d), once per crossing — they re-arm when the value drops (e.g.
+after `/compact`).
 
-## Mascotes
+Next to the mascot, the band says what is happening in plain words —
+`editing meter.ts…`, `running command…`, `searching code…` — plus the time the
+turn has been running (`47s`), and how long it took when it ends
+(`done ✓ in 1m12s`). While the mod is active, Claude Code's native
+`✻ Thinking… (12s · ↓ tokens · esc to interrupt)` line is hidden in the
+terminal, since the band already says it; `Esc` still interrupts as usual.
+`/faisca spinner on` brings the native line back.
 
-Troque com `b` na faixa ou `/faisca mascote <nome>` (sem nome, lista todos).
+## Mascots
 
-| id | Mascote | Visual | Interação (`p`) |
+Switch with `b` on the band or `/faisca mascot <id>` (no id: list them all).
+
+| id | Mascot | Look | Button `p` |
 |---|---|---|---|
-| `bit` (padrão) | **Bit** — robô de manutenção | `┌─┴─┐ │■ ■│ └┬─┬┘`, LEDs, antena, braços mecânicos | calibrar |
-| `rex` | **Rex** — T-rex de pixel | `▄▀█▄ / ▄███▀▀`, corre enquanto o Claude trabalha | rugir |
-| `kage` | **Kage** — ninja de capuz | `▄█████▄~ / █ ▬ ▬ █`, olhos em fenda, golpes de lâmina | saudar |
-| `faisca` | **Faísca** — espírito de terminal | `.✦. / ( ◕‿◕ )`, cintila e solta faíscas | carinho |
+| `bit` (default) | **Bit** — maintenance robot | `┌─┴─┐ │■ ■│ └┬─┬┘`, LEDs, antenna, mechanical arms | calibrate |
+| `rex` | **Rex** — pixel T-rex | `▄▀█▄ / ▄███▀▀`, runs while Claude works | roar |
+| `kage` | **Kage** — hooded ninja | `▄█████▄~ / █ ▬ ▬ █`, slit eyes, blade strikes | salute |
+| `faisca` | **Faísca** — terminal spirit | `.✦. / ( ◕‿◕ )`, twinkles and throws sparks | pet |
 
-Cada mascote tem rótulos próprios por humor (o Bit "compila" e "superaquece",
-o Rex "caça" e fica "hibernando"). Enquanto uma ferramenta roda, a faixa diz
-o que está acontecendo: `editando meter.ts…`, `rodando comando…`,
-`buscando no código…`.
+Each mascot has its own words per mood (Bit is "compiling" and "overheating",
+Rex is "hunting" and "hibernating"). Want another one? Make your own — see
+[Customize](#customize-themes-and-mascots).
 
-Quer outro? Crie o seu — veja [Personalizar](#personalizar-temas-e-mascotes).
+## Moods
 
-## Humores
-
-| Humor | Quando |
+| Mood (`id`) | When |
 |---|---|
-| à toa | sem turno; respira, cintila e pisca |
-| cochilando | ociosa há mais de 2 min |
-| pensando | turno começou; faísca orbitando |
-| mexendo | ferramenta de leitura/execução (Read, Bash, Grep…) |
-| escrevendo | Edit / Write / NotebookEdit — martelando |
-| pronto! | turno terminou bem — pulinho |
-| ops | ferramenta falhou, recusa ou erro de API |
-| derretendo | contexto ≥ 85% |
-| feliz ♡ | você fez carinho (`p`) |
+| idle (`idle`) | no turn running; breathes, twinkles and blinks |
+| napping (`sleep`) | idle for more than 2 minutes |
+| thinking (`thinking`) | a turn started |
+| working (`tool`) | a read/run tool (Read, Bash, Grep…) |
+| writing (`writing`) | Edit / Write / NotebookEdit |
+| done (`happy`) | the turn ended well — a little jump |
+| oops (`error`) | a tool failed, a refusal or an API error |
+| melting (`melting`) | context ≥ 85% |
+| happy ♡ (`pet`) | you pressed `p` |
 
-No terminal o mascote é um `Raster` animado a ~7 quadros/s via `$.ui.blit`
-(sem redesenhar a faixa); nas outras superfícies, um quadro estático.
+In the terminal the mascot is a `Raster` animated at ~7 fps through
+`$.ui.blit` (no band redraw); on other surfaces, a static frame.
 
-## Controles
+## Controls
 
-- Na faixa (foque com `ctrl+x tab` ou clique): `t` cicla o tema, `b` troca o
-  mascote, `m` minimiza/maximiza, `p` interage com o mascote.
-- `/faisca` — mostra estado e ajuda.
-- `/faisca tema [nome]` · `/faisca mascote [nome|on|off]` · `/faisca min|max` ·
-  `/faisca metricas ctx,turno,5h,7d,custo|todas` · `/faisca alertas on|off` ·
+- On the band (focus it with `ctrl+x tab` or a click): `t` cycles the theme,
+  `b` the mascot, `l` the language, `m` minimizes/maximizes, `p` interacts with
+  the mascot.
+- `/faisca` — status and help.
+- `/faisca theme [id]` · `/faisca mascot [id|on|off]` ·
+  `/faisca language [pt|en|es|auto]` · `/faisca min|max` ·
+  `/faisca metrics ctx,turn,5h,7d,cost|all` · `/faisca alerts on|off` ·
   `/faisca spinner on|off` · `/faisca reset`
-- `/faisca pasta` · `/faisca exemplos` · `/faisca recarregar` — seus temas e
-  mascotes (veja abaixo).
+- `/faisca folder` · `/faisca examples` · `/faisca reload` — your own themes
+  and mascots (see below).
 
-Com o mod ativo, a linha nativa `✻ Pensando… (12s · ↓ tokens · esc to
-interrupt)` do Claude Code some no terminal: o estado e o tempo do turno ficam
-na faixa (`processando… 12s`, e ao terminar `concluído ✓ em 34s`). `Esc`
-continua interrompendo normalmente. `/faisca spinner on` traz a linha de volta.
+Preferences are stored with `$.store` (they persist across sessions). When
+minimized — or in a terminal narrower than 70 columns — the band collapses to
+a single line, but the context meter never goes away.
 
-Preferências ficam em `$.store` (persistem entre sessões). Minimizada — ou em
-terminal com menos de 70 colunas — a faixa vira uma linha só, mas o medidor de
-contexto nunca some.
+## Themes
 
-## Temas
+Switch with `t` on the band or `/faisca theme <id>` (no id: list them all).
 
-Troque com `t` na faixa ou `/faisca tema <id>` (sem id, lista todos).
-
-| id | Tema | Barra | Clima |
+| id | Theme | Bar | Mood |
 |---|---|---|---|
-| `synthwave` (padrão) | Synthwave neon | `▰▱` | magenta → roxo → ciano, faíscas amarelo-sol |
-| `terracota` | Terracota quente | `●○` | argila, areia e ferrugem |
-| `crt` | CRT Fósforo | `█░` | verde de monitor antigo, varredura que percorre o mascote |
-| `nord` | Nord | `━─` | azul-gelo da paleta Nord, aurora para alertas |
-| `dracula` | Drácula | `▮▯` | roxo, rosa e verde neon da paleta Dracula |
-| `gruvbox` | Gruvbox | `■□` | amarelo, laranja e aqua terrosos do Gruvbox |
+| `synthwave` (default) | Synthwave neon | `▰▱` | magenta → purple → cyan, sun-yellow sparks |
+| `terracota` | Warm terracotta | `●○` | clay, sand and rust |
+| `crt` | CRT Phosphor | `█░` | old-monitor green, a scanline sweeping the mascot |
+| `nord` | Nord | `━─` | ice blue from the Nord palette, aurora for alerts |
+| `dracula` | Dracula | `▮▯` | purple, pink and neon green from the Dracula palette |
+| `gruvbox` | Gruvbox | `■□` | earthy yellow, orange and aqua from Gruvbox |
 
-## Personalizar: temas e mascotes
+## Customize: themes and mascots
 
-Você não precisa mexer no código nem fazer fork: o mod lê temas e mascotes
-seus de uma pasta, em arquivos `.json`.
+No code changes or forks needed: the mod reads your themes and mascots from a
+folder, as `.json` files.
 
 ```
 ~/.claude/faisca-hud/
-├── temas/       meu-tema.json, outro.json …
-└── mascotes/    meu-mascote.json …
+├── temas/       my-theme.json, another.json …
+└── mascotes/    my-mascot.json …
 ```
 
-No Windows, `~` é `C:\Users\<você>`. Se você usa `CLAUDE_CONFIG_DIR`, a pasta é
-`$CLAUDE_CONFIG_DIR/faisca-hud`. `/faisca pasta` mostra o caminho exato e o que
-foi carregado.
+(The subfolder names are `temas` and `mascotes` in every language.) On
+Windows, `~` is `C:\Users\<you>`. If you use `CLAUDE_CONFIG_DIR`, the folder is
+`$CLAUDE_CONFIG_DIR/faisca-hud`. `/faisca folder` shows the exact path and what
+was loaded.
 
-**Passo a passo:**
+**Step by step:**
 
-1. `/faisca exemplos` — cria `temas/_exemplo-tema.json` e
-   `mascotes/_exemplo-mascote.json` na pasta. Arquivos que começam com `_` são
-   ignorados: são só modelos.
-2. Copie o exemplo para um nome sem `_` (ex. `mascotes/robo.json`) e edite.
-3. `/faisca recarregar` — lê de novo sem reiniciar a sessão. Se algo estiver
-   errado, um aviso aparece e `/faisca pasta` diz o arquivo, o campo e o
-   motivo; os outros arquivos continuam valendo.
-4. Escolha com `/faisca tema <id>` / `/faisca mascote <id>` (ou `t` / `b` na
-   faixa).
+1. `/faisca examples` — writes `temas/_exemplo-tema.json` and
+   `mascotes/_exemplo-mascote.json` into the folder. Files starting with `_` are
+   ignored: they are just templates.
+2. Copy an example to a name without `_` (e.g. `mascotes/robot.json`) and edit
+   it.
+3. `/faisca reload` — reads everything again without restarting the session.
+   If something is wrong, a toast shows up and `/faisca folder` tells you the
+   file, the field and the reason (in your language); every other file keeps
+   working.
+4. Pick it with `/faisca theme <id>` / `/faisca mascot <id>` (or `t` / `b` on
+   the band).
 
-Um `id` igual ao de um tema ou mascote embutido **substitui** o embutido — dá
-para ajustar o `nord` do seu jeito, por exemplo.
+An `id` equal to a built-in theme or mascot **replaces** the built-in one — you
+can tweak `nord` your way, for example.
 
-### Formato de um tema
+### Texts in several languages
+
+Every text a person reads — a theme's `name`, a mascot's `description`,
+`petLabel` and each `labels` entry — can be a plain string (used in every
+language) or one string per language:
+
+```json
+"petLabel": { "en": "poke", "pt": "cutucar", "es": "pinchar" }
+```
+
+A missing language falls back to English, then Portuguese, then whichever is
+present. Mascot `name`s are proper names and stay a single string.
+
+### Theme format
 
 ```json
 {
-  "id": "meu-tema",
-  "name": "Meu tema",
+  "id": "my-theme",
+  "name": { "en": "My theme", "pt": "Meu tema", "es": "Mi tema" },
   "palette": {
     "fg": "#e6e6e6",
     "dim": "#6b6b6b",
@@ -178,36 +205,39 @@ para ajustar o `nord` do seu jeito, por exemplo.
 }
 ```
 
-| Campo | Obrigatório | O que é |
+| Field | Required | What it is |
 |---|---|---|
-| `id` | sim | letras minúsculas, números e `-` (até 32) |
-| `name` | sim | o nome que aparece em `/faisca tema` |
-| `palette.fg` / `dim` | sim | texto normal / texto apagado e parte vazia das barras |
-| `palette.accent` / `accent2` | `accent` sim | destaques (nome do mascote, tokens, custo); `accent2` usa `accent` se faltar |
-| `palette.ok` / `warn` / `danger` | sim | cor do % abaixo de 70%, de 70% e de 90% |
-| `barGradient` | não | cores do começo ao fim de uma barra cheia (interpoladas) |
-| `glyphs` | não | `full`/`empty` da barra, `sep` e `spark`; um caractere cada |
-| `mascot.body` | não | uma cor, ou uma por linha do mascote (de cima para baixo) |
-| `mascot.face` | não | olhos/boca (os caracteres que o mascote marca como `face`) |
-| `mascot.spark` | não | uma cor ou uma lista que cintila nas faíscas |
-| `mascot.error` / `errorSpark` | não | corpo e faíscas quando algo falha |
+| `id` | yes | lowercase letters, digits and `-` (up to 32) |
+| `name` | yes | shown by `/faisca theme`; text or per-language texts |
+| `palette.fg` / `dim` | yes | regular text / dimmed text and the empty part of bars |
+| `palette.accent` / `accent2` | `accent` yes | highlights (mascot name, tokens, cost); `accent2` falls back to `accent` |
+| `palette.ok` / `warn` / `danger` | yes | color of the % below 70%, from 70% and from 90% |
+| `barGradient` | no | colors from the start to the end of a full bar (interpolated) |
+| `glyphs` | no | `full`/`empty` for bars, `sep` and `spark`; one character each |
+| `mascot.body` | no | one color, or one per mascot line (top to bottom) |
+| `mascot.face` | no | eyes/mouth (the characters the mascot marks as `face`) |
+| `mascot.spark` | no | one color or a list that twinkles on sparks |
+| `mascot.error` / `errorSpark` | no | body and sparks when something fails |
 
-Cores sempre em `#rrggbb`.
+Colors are always `#rrggbb`.
 
-### Formato de um mascote
+### Mascot format
 
-O mascote ocupa **3 linhas × 11 colunas**. Cada humor é uma lista de quadros;
-`hold` é quantos ticks (~150 ms) o quadro fica na tela.
+A mascot takes **3 lines × 11 columns**. Each mood is a list of frames; `hold`
+is how many ticks (~150 ms) the frame stays on screen.
 
 ```json
 {
-  "id": "meu-mascote",
-  "name": "Quadrado",
-  "description": "um bloquinho que pisca",
-  "petLabel": "cutucar",
+  "id": "my-mascot",
+  "name": "Cube",
+  "description": { "en": "a little block that blinks", "pt": "um bloquinho que pisca" },
+  "petLabel": { "en": "poke", "pt": "cutucar", "es": "pinchar" },
   "sparks": "*·!?z",
   "face": "o-^x",
-  "labels": { "thinking": "matutando", "happy": "feito!" },
+  "labels": {
+    "thinking": { "en": "pondering", "pt": "matutando", "es": "cavilando" },
+    "happy": "done!"
+  },
   "colors": { "nord": { "body": "#88c0d0" } },
   "clips": {
     "idle": [
@@ -225,62 +255,69 @@ O mascote ocupa **3 linhas × 11 colunas**. Cada humor é uma lista de quadros;
 }
 ```
 
-| Campo | Obrigatório | O que é |
+| Field | Required | What it is |
 |---|---|---|
-| `id` / `name` | sim | como o do tema; `name` aparece embaixo do mascote |
-| `clips.idle` | sim | a animação de repouso; **todo humor que faltar usa ela** |
-| `clips.<humor>` | não | `sleep`, `thinking`, `tool`, `writing`, `happy`, `error`, `melting`, `pet` (tabela de humores acima) |
-| `frame` | — | 1 a 3 linhas de até 11 caracteres; linhas curtas são completadas com espaço |
-| `hold` | não | 1 a 200 ticks (padrão 2) |
-| `sparks` | não | caracteres pintados como faísca/efeito (padrão `✦✧·*`) |
-| `face` | não | caracteres pintados como rosto; todo o resto é corpo |
-| `labels` | não | o texto de cada humor ao lado da faísca (`"pet": "oi!"`) |
-| `petLabel` | não | o nome do botão `p` (padrão `interagir`) |
-| `mini` | não | versão de uma linha por humor, para o modo compacto (padrão: `mini.idle` ou o nome) |
-| `colors` | não | cores fixas do mascote **num tema específico**, por parte: `{ "<id do tema>": { "body": "#…", "face": "#…", "spark": "#…" } }` |
+| `id` / `name` | yes | like a theme's; `name` is shown under the mascot |
+| `clips.idle` | yes | the resting animation; **every missing mood uses it** |
+| `clips.<mood>` | no | `sleep`, `thinking`, `tool`, `writing`, `happy`, `error`, `melting`, `pet` (see [Moods](#moods)) |
+| `frame` | — | 1 to 3 lines of up to 11 characters; short lines are padded with spaces |
+| `hold` | no | 1 to 200 ticks (default 2) |
+| `sparks` | no | characters painted as sparks/effects (default `✦✧·*`) |
+| `face` | no | characters painted as the face; everything else is the body |
+| `labels` | no | the text next to the spark for each mood |
+| `petLabel` | no | the `p` button's name (default: "interact" in the current language) |
+| `description` | no | shown by `/faisca mascot` |
+| `mini` | no | one-line version per mood, for compact mode (default: `mini.idle` or the name) |
+| `colors` | no | fixed mascot colors **for a specific theme**, per part: `{ "<theme id>": { "body": "#…", "face": "#…", "spark": "#…" } }` |
 
-**Regras dos caracteres:** só caracteres que ocupam **uma coluna** no terminal
-— letras, números, pontuação, desenho de caixa (`┌─┐│└┘`), blocos
-(`█▀▄▌▐▛▜▝▘▗▖`), `✦ ✓ ·`. Emojis e caracteres largos (CJK, fullwidth) são
-recusados com a linha e o caractere exatos no erro.
+**Character rules:** only characters that take **one column** in the terminal
+— letters, digits, punctuation, box drawing (`┌─┐│└┘`), blocks
+(`█▀▄▌▐▛▜▝▘▗▖`), `✦ ✓ ·`. Emoji and wide characters (CJK, fullwidth) are
+rejected, and the error names the exact line and character.
 
-**Dicas:** comece só com `idle` e vá adicionando humores; dois quadros com
-`hold` alto + um quadro de `hold: 1` já dão uma piscada convincente; para o
-mascote "andar", desloque o desenho uma coluna entre quadros.
+**Tips:** start with `idle` only and add moods one by one; two frames with a
+long `hold` plus one with `hold: 1` already make a convincing blink; to make
+the mascot "walk", shift the drawing one column between frames.
 
-### Levar entre computadores
+### Taking it to other computers
 
-A pasta `~/.claude/faisca-hud/` é sua: versione-a junto com o resto da sua
-configuração do Claude Code (dotfiles) ou copie para a outra máquina. O mod
-instalado é o mesmo em todo lugar; só a pasta muda.
+`~/.claude/faisca-hud/` is yours: version it along with the rest of your
+Claude Code configuration (dotfiles) or copy it to the other machine. The
+installed mod is the same everywhere; only the folder changes.
 
-## Contribuir com um tema ou mascote embutido
+## Contributing a built-in theme or mascot
 
-Para propor um tema/mascote que venha com o mod: copie um de
-`hooks/themes/*.ts` ou `hooks/mascot/mascots/*.ts`, registre em
-`hooks/themes/index.ts` / `hooks/mascot/index.ts`, rode `claude plugin test .`
-(o teste de quadros acusa qualquer linha com largura errada) e abra um PR.
+To propose a theme or mascot that ships with the mod: copy one from
+`hooks/themes/*.ts` or `hooks/mascot/mascots/*.ts`, register it in
+`hooks/themes/index.ts` / `hooks/mascot/index.ts`, give its texts the three
+languages (`{ pt, en, es }`), run `claude plugin test .` (the frame test flags
+any line with the wrong width) and open a PR. New interface strings go in
+`hooks/i18n.ts`; a test checks that every language has every string.
 
-## Estrutura
+## Layout
 
 ```
-hooks/register.tsx      eventos → estado, faixa (ui.render AbovePrompt), /faisca, animador
-hooks/meter.ts          linhas do medidor (trechos coloridos, puro)
-hooks/usage.ts          normalização e formatação de uso
-hooks/alerts.ts         limiares 80/90 com rearme
-hooks/state.ts          preferências padrão e merge
-hooks/custom.ts         temas e mascotes do usuário (JSON): validação e exemplos
-hooks/themes/           registro de temas + synthwave, terracota, crt, nord, dracula, gruvbox
-hooks/mascot/           registro de mascotes (bit, rex, kage, faisca), humores, codificador do Raster
-types/index.d.ts        contrato de $.state
+hooks/register.tsx      events → state, the band (ui.render AbovePrompt), /faisca, animator
+hooks/i18n.ts           languages: every interface string in pt, en and es
+hooks/meter.ts          meter lines (colored segments, pure)
+hooks/usage.ts          usage normalization and formatting
+hooks/alerts.ts         80/90 thresholds with re-arming
+hooks/state.ts          default preferences and merging
+hooks/custom.ts         user themes and mascots (JSON): validation and examples
+hooks/themes/           theme registry + synthwave, terracota, crt, nord, dracula, gruvbox
+hooks/mascot/           mascot registry (bit, rex, kage, faisca), moods, Raster encoder
+types/index.d.ts        $.state contract
 tests/                  claude plugin test
 ```
 
-## Desenvolvimento
+## Development
 
 ```
-claude plugin validate <pasta>
-claude plugin test <pasta>
-tsc -p <pasta>            # depois que o engine carregou o mod uma vez
-claude --plugin-dir <pasta>
+claude plugin validate <folder>
+claude plugin test <folder>
+tsc -p <folder>            # after the engine has loaded the mod once
+claude --plugin-dir <folder>
 ```
+
+The code comments are in Portuguese (the author's language); contributions in
+any of the three languages are welcome.

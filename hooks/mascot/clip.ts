@@ -1,4 +1,5 @@
 import type { FaiscaMood } from '../../types'
+import type { Text } from '../i18n.ts'
 
 /** Cada quadro tem 3 linhas de exatamente MASCOT_COLUMNS caracteres de largura 1. */
 export const MASCOT_COLUMNS = 11
@@ -14,8 +15,8 @@ export type MascotPart = 'body' | 'face' | 'spark'
 export type Mascot = {
   id: string
   name: string
-  /** Uma linha: quem é, para o /faisca mascote. */
-  description: string
+  /** Uma linha: quem é, para o /faisca mascote; por idioma ou uma só. */
+  description: Text
   clips: Record<FaiscaMood, Clip>
   /** A versão de uma linha, para o modo compacto. */
   mini: Record<FaiscaMood, string>
@@ -23,9 +24,9 @@ export type Mascot = {
   sparks: string
   face: string
   /** Rótulos próprios por humor (o robô não "fica feliz ♡", ele recalibra). */
-  labels?: Partial<Record<FaiscaMood, string>>
-  /** O texto do botão de interação (hotkey `p`). */
-  petLabel: string
+  labels?: Partial<Record<FaiscaMood, Text>>
+  /** O texto do botão de interação (hotkey `p`); ausente, o padrão do idioma. */
+  petLabel?: Text
   /**
    * Cores próprias do mascote num tema, por parte, acima das do tema:
    * `{ nord: { body: '#88c0d0' } }` pinta o corpo assim só no nord.

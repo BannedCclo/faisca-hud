@@ -4,7 +4,8 @@ import { checkAlerts } from '../hooks/alerts.ts'
 import type { FaiscaMood } from '../types'
 import { MASCOT_COLUMNS, MASCOT_ROWS, frameAt, partOf } from '../hooks/mascot/clip.ts'
 import { getMascot, listMascots, nextMascot } from '../hooks/mascot/index.ts'
-import { describeTool, effectiveMood, labelForMood, SLEEP_AFTER_MS } from '../hooks/mascot/mood.ts'
+import { describeTool, effectiveMood, fileOf, labelFor, labelForMood, SLEEP_AFTER_MS } from '../hooks/mascot/mood.ts'
+import { LANGS, detectLang, nextLang, pick, t, verbOf, type Lang } from '../hooks/i18n.ts'
 import { encodeCells, mascotCells, toBase64 } from '../hooks/mascot/raster.ts'
 import { mergePrefs } from '../hooks/state.ts'
 import { getTheme, listThemes, mix, nextTheme, sample } from '../hooks/themes/index.ts'
@@ -47,22 +48,78 @@ describe('mascotes', () => {
     expect(seen).toEqual(['rex', 'kage', 'faisca', 'bit'])
   })
 
-  test('ferramentas viram frases de ação em português, com o arquivo', () => {
-    expect(describeTool('Edit', { file_path: 'C:\\x\\hooks\\meter.ts' })).toBe('editando meter.ts')
-    expect(describeTool('Write', { file_path: '/a/README.md' })).toBe('criando README.md')
-    expect(describeTool('Read', { file_path: '/a/b/usage.ts' })).toBe('lendo usage.ts')
-    expect(describeTool('Read', {})).toBe('lendo')
-    expect(describeTool('Bash', { command: 'ls' })).toBe('rodando comando')
-    expect(describeTool('Grep', { pattern: 'x', path: '/a' })).toBe('buscando no código')
-    expect(describeTool('mcp__shadcn__add', {})).toBe('usando add (shadcn)')
-    expect(describeTool('Desconhecida', {})).toBe('usando Desconhecida')
+  test('ferramentas viram frases de ação no idioma, com o arquivo', () => {
+    const d = (tool: string, args: Record<string, unknown>, lang: Lang) => describeTool(tool, fileOf(args), lang)
+    expect(d('Edit', { file_path: 'C:\\x\\hooks\\meter.ts' }, 'pt')).toBe('editando meter.ts')
+    expect(d('Write', { file_path: '/a/README.md' }, 'pt')).toBe('criando README.md')
+    expect(d('Read', { file_path: '/a/b/usage.ts' }, 'pt')).toBe('lendo usage.ts')
+    expect(d('Read', {}, 'pt')).toBe('lendo')
+    expect(d('Bash', { command: 'ls' }, 'pt')).toBe('rodando comando')
+    expect(d('Grep', { pattern: 'x', path: '/a' }, 'pt')).toBe('buscando no código')
+    expect(d('mcp__shadcn__add', {}, 'pt')).toBe('usando add (shadcn)')
+    expect(d('Desconhecida', {}, 'pt')).toBe('usando Desconhecida')
+    expect(d('Edit', { file_path: '/a/meter.ts' }, 'en')).toBe('editing meter.ts')
+    expect(d('Bash', {}, 'en')).toBe('running command')
+    expect(d('Read', { file_path: '/a/x.ts' }, 'es')).toBe('leyendo x.ts')
+    expect(d('Grep', {}, 'es')).toBe('buscando en el código')
   })
 
-  test('rótulos próprios do mascote vencem os padrão', () => {
-    expect(labelForMood('happy', getMascot('bit'))).toBe('concluído ✓')
-    expect(labelForMood('pet', getMascot('rex'))).toBe('RAWR!')
-    expect(labelForMood('happy', getMascot('faisca'))).toBe('pronto!')
-    expect(labelForMood('happy')).toBe('pronto!')
+  test('rótulos próprios do mascote vencem os padrão, em cada idioma', () => {
+    expect(labelForMood('happy', getMascot('bit'), 'pt')).toBe('concluído ✓')
+    expect(labelForMood('happy', getMascot('bit'), 'en')).toBe('done ✓')
+    expect(labelForMood('happy', getMascot('bit'), 'es')).toBe('completado ✓')
+    expect(labelForMood('pet', getMascot('rex'), 'es')).toBe('RAWR!')
+    expect(labelForMood('happy', getMascot('faisca'), 'pt')).toBe('pronto!')
+    expect(labelForMood('happy', undefined, 'en')).toBe('done!')
+    expect(labelForMood('sleep', undefined, 'es')).toBe('dormitando')
+  })
+
+  test('o texto da atividade é montado no idioma da hora', () => {
+    const bit = getMascot('bit')
+    const tool = { mood: 'writing' as const, since: 0, detail: { kind: 'tool' as const, tool: 'Edit', file: 'a.ts' } }
+    expect(labelFor(tool, 'writing', bit, 'pt')).toBe('editando a.ts')
+    expect(labelFor(tool, 'writing', bit, 'en')).toBe('editing a.ts')
+    // O humor efetivo já mudou (o passageiro venceu): vale o rótulo do humor.
+    expect(labelFor(tool, 'thinking', bit, 'en')).toBe('processing')
+    const failed = { mood: 'error' as const, since: 0, detail: { kind: 'toolFailed' as const, tool: 'Bash' } }
+    expect(labelFor(failed, 'error', bit, 'es')).toBe('falló: ejecutando comando')
+    const arrived = { mood: 'happy' as const, since: 0, detail: { kind: 'arrived' as const, mascot: 'Rex' } }
+    expect(labelFor(arrived, 'happy', bit, 'en')).toBe('Rex is here')
+    // Estado antigo, sem detail (de antes da 0.3): cai no rótulo do humor.
+    expect(labelFor({ mood: 'idle', since: 0 }, 'idle', bit, 'pt')).toBe('em espera')
+  })
+
+  test('idioma: detecção pelos settings e pelo LANG, ciclo e texto multilíngue', () => {
+    expect(detectLang('Portuguese', undefined)).toBe('pt')
+    expect(detectLang('português', undefined)).toBe('pt')
+    expect(detectLang('Spanish', 'pt_BR.UTF-8')).toBe('es')
+    expect(detectLang('japanese', 'pt_BR')).toBe('en')
+    expect(detectLang(undefined, 'es_ES.UTF-8')).toBe('es')
+    expect(detectLang(undefined, undefined)).toBe('en')
+    expect([nextLang('pt'), nextLang('en'), nextLang('es')]).toEqual(['en', 'es', 'pt'])
+    expect(pick({ pt: 'oi', en: 'hi' }, 'es')).toBe('hi')
+    expect(pick({ pt: 'oi' }, 'en')).toBe('oi')
+    expect(pick('igual', 'es')).toBe('igual')
+    expect(verbOf('mascota')).toBe('mascot')
+    expect(verbOf('recarregar')).toBe('reload')
+    expect(verbOf('language')).toBe('language')
+    expect(verbOf('xyz')).toBeUndefined()
+  })
+
+  test('todo idioma tem todos os textos, na mesma forma', () => {
+    const shape = (o: unknown): unknown =>
+      typeof o === 'function' ? 'fn' : Array.isArray(o) ? o.map(shape) : typeof o === 'object' && o !== null
+        ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, shape(v)]).sort())
+        : typeof o
+    const pt = shape(t('pt'))
+    expect(shape(t('en'))).toEqual(pt)
+    expect(shape(t('es'))).toEqual(pt)
+    for (const m of listMascots()) {
+      for (const lang of LANGS) {
+        expect(pick(m.description, lang).length).toBeGreaterThan(0)
+        for (const mood of MOODS) expect(labelForMood(mood, m, lang).length).toBeGreaterThan(0)
+      }
+    }
   })
 
   test('partes: LED do robô é rosto, antena é corpo, faísca é efeito', () => {
@@ -173,6 +230,7 @@ describe('formatação', () => {
       mascot: getMascot('bit'),
       prefs: mergePrefs(null),
       theme: getTheme('synthwave'),
+      s: t('pt'),
     }
     const text = (line: { text: string }[]) => line.map(s => s.text).join('')
     const working = fullLines({ ...base, turn: { ...EMPTY_TURN, startedAt: 1000 }, mood: 'thinking', label: 'processando', isWorking: true, now: 13_500 })
@@ -181,6 +239,9 @@ describe('formatação', () => {
     expect(text(done.at(-1)!)).toContain('concluído ✓ em 34s')
     const idle = fullLines({ ...base, turn: { ...EMPTY_TURN, startedAt: 1000, endedAt: 35_000 }, mood: 'idle', label: 'em espera', isWorking: false, now: 99_000 })
     expect(text(idle.at(-1)!)).not.toContain('34s')
+    const doneEn = fullLines({ ...base, s: t('en'), turn: { ...EMPTY_TURN, startedAt: 1000, endedAt: 35_000 }, mood: 'happy', label: 'done ✓', isWorking: false, now: 36_000 })
+    expect(text(doneEn.at(-1)!)).toContain('done ✓ in 34s')
+    expect(text(doneEn[0]!)).toContain('turn ↑')
   })
 
   test('ferramentas mais usadas primeiro, MCP encurtado', () => {

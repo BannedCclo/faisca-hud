@@ -4,13 +4,8 @@ export const THRESHOLDS = [80, 90] as const
 /** Quantos pontos abaixo do limiar a leitura precisa cair para o alerta rearmar. */
 export const REARM_GAP = 5
 
-const NAMES: Record<string, string> = {
-  ctx: 'Contexto',
-  '5h': 'Limite de 5h',
-  '7d': 'Limite semanal',
-}
-
-export type Fired = { key: string; level: number; percent: number; text: string }
+/** Um cruzamento de limiar; o texto do aviso sai do idioma (`Strings.alerts`). */
+export type Fired = { key: string; level: number; percent: number }
 
 export function readings(u: FaiscaUsage): Record<string, number | undefined> {
   return { ctx: u.ctxPercent, '5h': u.fiveHour?.percent, '7d': u.sevenDay?.percent }
@@ -35,12 +30,7 @@ export function checkAlerts(
     }
     const reached = [...THRESHOLDS].reverse().find(t => percent >= t) ?? 0
     if (reached > level) {
-      fired.push({
-        key,
-        level: reached,
-        percent,
-        text: `✦ ${NAMES[key] ?? key} em ${Math.round(percent)}% (passou de ${reached}%)`,
-      })
+      fired.push({ key, level: reached, percent })
       level = reached
     }
     if (level === 0) delete next[key]

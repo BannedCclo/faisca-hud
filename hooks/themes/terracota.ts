@@ -16,7 +16,7 @@ function mascotColor(cell: MascotCell): `#${string}` {
 
 export const terracota: Theme = {
   id: 'terracota',
-  name: 'Terracota quente',
+  name: { pt: 'Terracota quente', en: 'Warm terracotta', es: 'Terracota cálida' },
   palette: {
     fg: CREAM,
     dim: '#9c8576',
