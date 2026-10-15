@@ -69,10 +69,7 @@ o Rex "caça" e fica "hibernando"). Enquanto uma ferramenta roda, a faixa diz
 o que está acontecendo: `editando meter.ts…`, `rodando comando…`,
 `buscando no código…`.
 
-**Criar um mascote:** copie `hooks/mascot/mascots/bit.ts`, desenhe os 9 clipes
-(3 linhas × 11 colunas, glifos de largura 1), defina `sparks`/`face` (quais
-caracteres pintar como efeito/rosto) e registre em `hooks/mascot/index.ts`. O
-teste de quadros acusa qualquer linha com largura errada.
+Quer outro? Crie o seu — veja [Personalizar](#personalizar-temas-e-mascotes).
 
 ## Humores
 
@@ -99,6 +96,8 @@ No terminal o mascote é um `Raster` animado a ~7 quadros/s via `$.ui.blit`
 - `/faisca tema [nome]` · `/faisca mascote [nome|on|off]` · `/faisca min|max` ·
   `/faisca metricas ctx,turno,5h,7d,custo|todas` · `/faisca alertas on|off` ·
   `/faisca spinner on|off` · `/faisca reset`
+- `/faisca pasta` · `/faisca exemplos` · `/faisca recarregar` — seus temas e
+  mascotes (veja abaixo).
 
 Com o mod ativo, a linha nativa `✻ Pensando… (12s · ↓ tokens · esc to
 interrupt)` do Claude Code some no terminal: o estado e o tempo do turno ficam
@@ -122,16 +121,145 @@ Troque com `t` na faixa ou `/faisca tema <id>` (sem id, lista todos).
 | `dracula` | Drácula | `▮▯` | roxo, rosa e verde neon da paleta Dracula |
 | `gruvbox` | Gruvbox | `■□` | amarelo, laranja e aqua terrosos do Gruvbox |
 
-## Criar um tema
+## Personalizar: temas e mascotes
 
-1. Copie `hooks/themes/terracota.ts` para `hooks/themes/<id>.ts` e ajuste
-   `palette`, `barGradient`, `glyphs` e `mascotColor` (cor por célula do
-   mascote: `part` é `body`, `face` ou `spark`; `tick` serve para cintilar).
-2. Em `hooks/themes/index.ts`, importe e chame `registerTheme(<seu tema>)`.
-3. `claude plugin test <pasta>` — o teste de registro lista os ids esperados;
-   atualize-o.
+Você não precisa mexer no código nem fazer fork: o mod lê temas e mascotes
+seus de uma pasta, em arquivos `.json`.
 
-Glifos precisam ter largura 1 (o `Raster` recusa caracteres largos).
+```
+~/.claude/faisca-hud/
+├── temas/       meu-tema.json, outro.json …
+└── mascotes/    meu-mascote.json …
+```
+
+No Windows, `~` é `C:\Users\<você>`. Se você usa `CLAUDE_CONFIG_DIR`, a pasta é
+`$CLAUDE_CONFIG_DIR/faisca-hud`. `/faisca pasta` mostra o caminho exato e o que
+foi carregado.
+
+**Passo a passo:**
+
+1. `/faisca exemplos` — cria `temas/_exemplo-tema.json` e
+   `mascotes/_exemplo-mascote.json` na pasta. Arquivos que começam com `_` são
+   ignorados: são só modelos.
+2. Copie o exemplo para um nome sem `_` (ex. `mascotes/robo.json`) e edite.
+3. `/faisca recarregar` — lê de novo sem reiniciar a sessão. Se algo estiver
+   errado, um aviso aparece e `/faisca pasta` diz o arquivo, o campo e o
+   motivo; os outros arquivos continuam valendo.
+4. Escolha com `/faisca tema <id>` / `/faisca mascote <id>` (ou `t` / `b` na
+   faixa).
+
+Um `id` igual ao de um tema ou mascote embutido **substitui** o embutido — dá
+para ajustar o `nord` do seu jeito, por exemplo.
+
+### Formato de um tema
+
+```json
+{
+  "id": "meu-tema",
+  "name": "Meu tema",
+  "palette": {
+    "fg": "#e6e6e6",
+    "dim": "#6b6b6b",
+    "accent": "#ff8c42",
+    "accent2": "#4fc3f7",
+    "ok": "#81c784",
+    "warn": "#ffd54f",
+    "danger": "#e57373"
+  },
+  "barGradient": ["#4fc3f7", "#ff8c42"],
+  "glyphs": { "full": "█", "empty": "░", "sep": "·", "spark": "✦" },
+  "mascot": {
+    "body": ["#ffb074", "#ff8c42", "#d9672a"],
+    "face": "#ffffff",
+    "spark": ["#4fc3f7", "#ffd54f"],
+    "error": "#e57373",
+    "errorSpark": "#6b6b6b"
+  }
+}
+```
+
+| Campo | Obrigatório | O que é |
+|---|---|---|
+| `id` | sim | letras minúsculas, números e `-` (até 32) |
+| `name` | sim | o nome que aparece em `/faisca tema` |
+| `palette.fg` / `dim` | sim | texto normal / texto apagado e parte vazia das barras |
+| `palette.accent` / `accent2` | `accent` sim | destaques (nome do mascote, tokens, custo); `accent2` usa `accent` se faltar |
+| `palette.ok` / `warn` / `danger` | sim | cor do % abaixo de 70%, de 70% e de 90% |
+| `barGradient` | não | cores do começo ao fim de uma barra cheia (interpoladas) |
+| `glyphs` | não | `full`/`empty` da barra, `sep` e `spark`; um caractere cada |
+| `mascot.body` | não | uma cor, ou uma por linha do mascote (de cima para baixo) |
+| `mascot.face` | não | olhos/boca (os caracteres que o mascote marca como `face`) |
+| `mascot.spark` | não | uma cor ou uma lista que cintila nas faíscas |
+| `mascot.error` / `errorSpark` | não | corpo e faíscas quando algo falha |
+
+Cores sempre em `#rrggbb`.
+
+### Formato de um mascote
+
+O mascote ocupa **3 linhas × 11 colunas**. Cada humor é uma lista de quadros;
+`hold` é quantos ticks (~150 ms) o quadro fica na tela.
+
+```json
+{
+  "id": "meu-mascote",
+  "name": "Quadrado",
+  "description": "um bloquinho que pisca",
+  "petLabel": "cutucar",
+  "sparks": "*·!?z",
+  "face": "o-^x",
+  "labels": { "thinking": "matutando", "happy": "feito!" },
+  "colors": { "nord": { "body": "#88c0d0" } },
+  "clips": {
+    "idle": [
+      { "frame": ["   ┌───┐", "   │o o│", "   └───┘"], "hold": 12 },
+      { "frame": ["   ┌───┐", "   │- -│", "   └───┘"], "hold": 1 }
+    ],
+    "thinking": [
+      { "frame": ["   ┌───┐ ?", "   │o o│", "   └───┘"], "hold": 3 },
+      { "frame": ["   ┌───┐  ", "   │o o│ ?", "   └───┘"], "hold": 3 }
+    ],
+    "happy": [{ "frame": ["   ┌───┐ !", "   │^ ^│", "   └───┘"], "hold": 3 }],
+    "error": [{ "frame": ["   ┌───┐", "   │x x│", "   └───┘"], "hold": 3 }]
+  },
+  "mini": { "idle": "[o o]", "happy": "[^ ^]", "error": "[x x]" }
+}
+```
+
+| Campo | Obrigatório | O que é |
+|---|---|---|
+| `id` / `name` | sim | como o do tema; `name` aparece embaixo do mascote |
+| `clips.idle` | sim | a animação de repouso; **todo humor que faltar usa ela** |
+| `clips.<humor>` | não | `sleep`, `thinking`, `tool`, `writing`, `happy`, `error`, `melting`, `pet` (tabela de humores acima) |
+| `frame` | — | 1 a 3 linhas de até 11 caracteres; linhas curtas são completadas com espaço |
+| `hold` | não | 1 a 200 ticks (padrão 2) |
+| `sparks` | não | caracteres pintados como faísca/efeito (padrão `✦✧·*`) |
+| `face` | não | caracteres pintados como rosto; todo o resto é corpo |
+| `labels` | não | o texto de cada humor ao lado da faísca (`"pet": "oi!"`) |
+| `petLabel` | não | o nome do botão `p` (padrão `interagir`) |
+| `mini` | não | versão de uma linha por humor, para o modo compacto (padrão: `mini.idle` ou o nome) |
+| `colors` | não | cores fixas do mascote **num tema específico**, por parte: `{ "<id do tema>": { "body": "#…", "face": "#…", "spark": "#…" } }` |
+
+**Regras dos caracteres:** só caracteres que ocupam **uma coluna** no terminal
+— letras, números, pontuação, desenho de caixa (`┌─┐│└┘`), blocos
+(`█▀▄▌▐▛▜▝▘▗▖`), `✦ ✓ ·`. Emojis e caracteres largos (CJK, fullwidth) são
+recusados com a linha e o caractere exatos no erro.
+
+**Dicas:** comece só com `idle` e vá adicionando humores; dois quadros com
+`hold` alto + um quadro de `hold: 1` já dão uma piscada convincente; para o
+mascote "andar", desloque o desenho uma coluna entre quadros.
+
+### Levar entre computadores
+
+A pasta `~/.claude/faisca-hud/` é sua: versione-a junto com o resto da sua
+configuração do Claude Code (dotfiles) ou copie para a outra máquina. O mod
+instalado é o mesmo em todo lugar; só a pasta muda.
+
+## Contribuir com um tema ou mascote embutido
+
+Para propor um tema/mascote que venha com o mod: copie um de
+`hooks/themes/*.ts` ou `hooks/mascot/mascots/*.ts`, registre em
+`hooks/themes/index.ts` / `hooks/mascot/index.ts`, rode `claude plugin test .`
+(o teste de quadros acusa qualquer linha com largura errada) e abra um PR.
 
 ## Estrutura
 
@@ -141,6 +269,7 @@ hooks/meter.ts          linhas do medidor (trechos coloridos, puro)
 hooks/usage.ts          normalização e formatação de uso
 hooks/alerts.ts         limiares 80/90 com rearme
 hooks/state.ts          preferências padrão e merge
+hooks/custom.ts         temas e mascotes do usuário (JSON): validação e exemplos
 hooks/themes/           registro de temas + synthwave, terracota, crt, nord, dracula, gruvbox
 hooks/mascot/           registro de mascotes (bit, rex, kage, faisca), humores, codificador do Raster
 types/index.d.ts        contrato de $.state

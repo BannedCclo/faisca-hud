@@ -1,7 +1,7 @@
 {
   "name": "faisca-hud",
-  "version": "0.1.0",
-  "description": "Faixa acima do prompt com medidor de tokens sempre visível, 6 temas e mascotes ASCII animados que reagem ao Claude.",
+  "version": "0.2.0",
+  "description": "Faixa acima do prompt com medidor de tokens sempre visível, 6 temas e mascotes ASCII animados que reagem ao Claude — e os seus, em JSON.",
   "author": { "name": "BannedCclo" },
   "types": "./types/index.d.ts"
 }

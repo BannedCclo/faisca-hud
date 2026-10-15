@@ -26,6 +26,11 @@ export type Mascot = {
   labels?: Partial<Record<FaiscaMood, string>>
   /** O texto do botão de interação (hotkey `p`). */
   petLabel: string
+  /**
+   * Cores próprias do mascote num tema, por parte, acima das do tema:
+   * `{ nord: { body: '#88c0d0' } }` pinta o corpo assim só no nord.
+   */
+  colors?: Record<string, Partial<Record<MascotPart, `#${string}`>>>
 }
 
 export function clip(...steps: Array<[Frame, number]>): Clip {

@@ -69,17 +69,29 @@ registerTheme(gruvbox)
 
 export const DEFAULT_THEME = synthwave.id
 
+let custom: readonly Theme[] = []
+
+/**
+ * Os temas do usuário (pasta `faisca-hud/temas/`), trocados de uma vez a cada
+ * carga; um id igual ao de um tema embutido o substitui.
+ */
+export function setCustomThemes(themes: readonly Theme[]): void {
+  custom = themes
+}
+
 export function listThemes(): readonly Theme[] {
-  return THEMES
+  const ids = new Set(custom.map(t => t.id))
+  return [...THEMES.filter(t => !ids.has(t.id)), ...custom]
 }
 
 export function getTheme(id: string): Theme {
-  return THEMES.find(one => one.id === id) ?? synthwave
+  return listThemes().find(one => one.id === id) ?? synthwave
 }
 
 export function nextTheme(id: string): Theme {
-  const at = THEMES.findIndex(one => one.id === id)
-  return THEMES[(at + 1) % THEMES.length] ?? synthwave
+  const all = listThemes()
+  const at = all.findIndex(one => one.id === id)
+  return all[(at + 1) % all.length] ?? synthwave
 }
 
 export function hexToInt(hex: Hex): number {

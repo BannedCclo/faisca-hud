@@ -46,7 +46,9 @@ export function encodeCells(
 /** O quadro do mascote no tick, pintado pelo tema. */
 export function mascotCells(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick: number): string {
   const frame = frameAt(mascot, mood, tick)
-  return encodeCells(frame, MASCOT_COLUMNS, (ch, row, col) =>
-    hexToInt(theme.mascotColor({ mascot: mascot.id, part: partOf(mascot, ch), mood, row, col, rows: MASCOT_ROWS, tick })),
-  )
+  const own = mascot.colors?.[theme.id]
+  return encodeCells(frame, MASCOT_COLUMNS, (ch, row, col) => {
+    const part = partOf(mascot, ch)
+    return hexToInt(own?.[part] ?? theme.mascotColor({ mascot: mascot.id, part, mood, row, col, rows: MASCOT_ROWS, tick }))
+  })
 }

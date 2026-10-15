@@ -3,13 +3,14 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { FaiscaActivity, FaiscaMetric, FaiscaMood, FaiscaPrefs, FaiscaUsage } from '../types'
 import { checkAlerts, readings } from './alerts.ts'
+import { EXAMPLE_MASCOT, EXAMPLE_THEME, loadCustom, type CustomFile } from './custom.ts'
 import { MASCOT_COLUMNS, MASCOT_ROWS, frameAt } from './mascot/clip.ts'
-import { getMascot, listMascots, nextMascot } from './mascot/index.ts'
+import { getMascot, listMascots, nextMascot, setCustomMascots } from './mascot/index.ts'
 import { describeTool, effectiveMood, labelForMood, moodForTool } from './mascot/mood.ts'
 import { mascotCells } from './mascot/raster.ts'
 import { compactLine, fullLines, type Line } from './meter.ts'
 import { DEFAULT_PREFS, EMPTY_TURN, mergePrefs } from './state.ts'
-import { getTheme, listThemes, nextTheme } from './themes/index.ts'
+import { getTheme, listThemes, nextTheme, setCustomThemes } from './themes/index.ts'
 import { addStep, toUsage } from './usage.ts'
 
 const COMMAND = 'faisca'
@@ -48,6 +49,58 @@ const live = {
 }
 
 type $ = EngineInterface
+
+/** O que a última leitura da pasta de personalização achou. */
+const custom = { dir: '', themes: [] as string[], mascots: [] as string[], errors: [] as string[] }
+
+/** `<pasta do Claude>/faisca-hud`: `CLAUDE_CONFIG_DIR`, ou `~/.claude`. */
+async function customDir($: $): Promise<string> {
+  const config = await $.env.get('CLAUDE_CONFIG_DIR')
+  if (config) return `${config.replace(/[\\/]+$/, '')}/faisca-hud`
+  const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? ''
+  return `${home.replace(/[\\/]+$/, '')}/.claude/faisca-hud`
+}
+
+async function readJsonFiles($: $, dir: string): Promise<CustomFile[]> {
+  if (!(await $.fs.exists(dir))) return []
+  const files: CustomFile[] = []
+  for (const entry of await $.fs.list(dir)) {
+    if (entry.kind !== 'file' || !entry.name.endsWith('.json')) continue
+    files.push({ name: entry.name, text: String(await $.fs.read(`${dir}/${entry.name}`)) })
+  }
+  return files
+}
+
+/** Lê os temas e mascotes do usuário e os põe nos registros. */
+async function loadCustomFromDisk($: $): Promise<void> {
+  try {
+    custom.dir = await customDir($)
+    const loaded = loadCustom(
+      await readJsonFiles($, `${custom.dir}/temas`),
+      await readJsonFiles($, `${custom.dir}/mascotes`),
+    )
+    setCustomThemes(loaded.themes)
+    setCustomMascots(loaded.mascots)
+    custom.themes = loaded.themes.map(t => t.id)
+    custom.mascots = loaded.mascots.map(m => m.id)
+    custom.errors = loaded.errors
+  } catch (err) {
+    custom.errors = [`não consegui ler ${custom.dir}: ${String(err)}`]
+  }
+  if (custom.errors.length > 0) {
+    $.ui.toast(`✦ faisca-hud: ${custom.errors.length} personalização(ões) com erro — /faisca pasta`)
+  }
+}
+
+function customText(): string {
+  const list = (ids: string[]) => (ids.length > 0 ? ids.join(', ') : 'nenhum')
+  return [
+    `Pasta de personalização: ${custom.dir}`,
+    `  temas:    ${list(custom.themes)}   (${custom.dir}/temas/*.json)`,
+    `  mascotes: ${list(custom.mascots)}   (${custom.dir}/mascotes/*.json)`,
+    ...(custom.errors.length > 0 ? ['', 'Com erro (ignorados):', ...custom.errors.map(e => `  ✗ ${e}`)] : []),
+  ].join('\n')
+}
 
 async function setMood($: $, mood: FaiscaMood, label = labelForMood(mood, live.mascot)): Promise<void> {
   const next: FaiscaActivity = { mood, label, since: await $.clock.now() }
@@ -116,6 +169,9 @@ function helpText(p: FaiscaPrefs): string {
     '/faisca metricas a,b,…       quais métricas mostrar (ctx, turno, 5h, 7d, custo, todas)',
     '/faisca alertas on|off       avisos ao passar de 80% e 90%',
     '/faisca spinner on|off       mostra ou esconde a linha "Pensando…" nativa',
+    '/faisca pasta                onde ficam seus temas e mascotes, e o que foi carregado',
+    '/faisca recarregar           relê seus temas e mascotes sem reiniciar',
+    '/faisca exemplos             cria arquivos de exemplo na pasta para você copiar',
     '/faisca reset                volta tudo ao padrão',
     '',
     'Na faixa (ctrl+x tab ou clique para focar): t tema · b mascote · m minimizar · p interagir',
@@ -197,6 +253,35 @@ async function runCommand($: $, args: string): Promise<string> {
       await setPrefs($, p => ({ ...p, metrics }))
       return `✦ Métricas: ${METRICS.filter(m => metrics[m]).join(', ') || 'nenhuma (o contexto segue no modo compacto)'}`
     }
+    case 'pasta':
+      return customText()
+    case 'recarregar':
+    case 'reload': {
+      await loadCustomFromDisk($)
+      const p = await read($, prefs)
+      live.theme = getTheme(p.theme)
+      live.mascot = getMascot(p.mascot)
+      $.ui.invalidate('ui.render')
+      return `✦ Personalizações recarregadas.\n\n${customText()}`
+    }
+    case 'exemplos': {
+      const dir = custom.dir || (await customDir($))
+      const written: string[] = []
+      for (const [path, data] of [
+        [`${dir}/temas/_exemplo-tema.json`, EXAMPLE_THEME],
+        [`${dir}/mascotes/_exemplo-mascote.json`, EXAMPLE_MASCOT],
+      ] as const) {
+        if (await $.fs.exists(path)) continue
+        await $.fs.write(path, JSON.stringify(data, null, 2) + '\n')
+        written.push(path)
+      }
+      return [
+        written.length > 0 ? `✦ Criei:\n${written.map(w => `  ${w}`).join('\n')}` : 'Os exemplos já existem na pasta.',
+        '',
+        'Arquivos que começam com "_" são ignorados. Copie um exemplo para um nome sem "_"',
+        '(ex. temas/meu-tema.json), edite e rode /faisca recarregar.',
+      ].join('\n')
+    }
     case 'reset':
       await setPrefs($, () => DEFAULT_PREFS)
       return '✦ Preferências de volta ao padrão.'
@@ -207,6 +292,7 @@ async function runCommand($: $, args: string): Promise<string> {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    await loadCustomFromDisk($)
     const saved = mergePrefs(await $.store.get('prefs'))
     await update($, prefs, () => saved)
     live.theme = getTheme(saved.theme)
@@ -216,7 +302,7 @@ export const register: Register = on => {
     await $.command.register({
       name: COMMAND,
       description: 'Faísca HUD: tema, modo compacto, mascote, métricas e alertas',
-      argumentHint: '[tema|min|max|mascote|metricas|alertas|reset]',
+      argumentHint: '[tema|mascote|min|max|metricas|alertas|spinner|pasta|recarregar|exemplos|reset]',
     })
     $.clock.every(TICK_MS, () => void tick($))
 

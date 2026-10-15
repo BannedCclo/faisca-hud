@@ -20,15 +20,27 @@ registerMascot(faisca)
 
 export const DEFAULT_MASCOT = bit.id
 
+let custom: readonly Mascot[] = []
+
+/**
+ * Os mascotes do usuário (pasta `faisca-hud/mascotes/`), trocados de uma vez a
+ * cada carga; um id igual ao de um mascote embutido o substitui.
+ */
+export function setCustomMascots(mascots: readonly Mascot[]): void {
+  custom = mascots
+}
+
 export function listMascots(): readonly Mascot[] {
-  return MASCOTS
+  const ids = new Set(custom.map(m => m.id))
+  return [...MASCOTS.filter(m => !ids.has(m.id)), ...custom]
 }
 
 export function getMascot(id: string): Mascot {
-  return MASCOTS.find(one => one.id === id) ?? bit
+  return listMascots().find(one => one.id === id) ?? bit
 }
 
 export function nextMascot(id: string): Mascot {
-  const at = MASCOTS.findIndex(one => one.id === id)
-  return MASCOTS[(at + 1) % MASCOTS.length] ?? bit
+  const all = listMascots()
+  const at = all.findIndex(one => one.id === id)
+  return all[(at + 1) % all.length] ?? bit
 }
