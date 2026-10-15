@@ -1,0 +1,6 @@
+{
+  "name": "faisca-hud",
+  "owner": { "name": "BannedCclo" },
+  "description": "Faixa acima do prompt do Claude Code com medidor de tokens sempre visível, temas e mascotes ASCII animados.",
+  "plugins": [{ "name": "faisca-hud", "source": "./" }]
+}
