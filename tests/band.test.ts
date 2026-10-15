@@ -24,7 +24,7 @@ test('a faixa desenha medidor, mascote e botões em toda superfície', async ($,
     expect(await ui.find({ key: 'tema' })).toBeDefined()
     expect(await ui.find({ key: 'carinho' })).toBeDefined()
     if (surface === 'terminal') expect(await ui.find({ type: 'Raster', key: 'faisca' })).toBeDefined()
-    expect((await ui.find({ type: 'Text', text: /^Bit$/ }))?.text).toBe('Bit')
+    expect((await ui.find({ type: 'Text', text: /^Faísca$/ }))?.text).toBe('Faísca')
     await ui.unmount()
   }
 })
@@ -70,10 +70,10 @@ test('trocar o tema e interagir redesenham sem recusa', async ($, on) => {
   mock.store(on)
   const ui = await $.ui.mount({ surface: 'terminal', ...band(110) })
   await ui.press({ key: 'tema' })
-  // O padrão é o robô Bit e, sem settings, o inglês: o botão é "calibrate".
-  expect((await ui.find({ key: 'carinho' }))?.text).toContain('calibrate')
+  // O padrão é a Faísca e, sem settings, o inglês: o botão é "pet".
+  expect((await ui.find({ key: 'carinho' }))?.text).toContain('pet')
   await ui.press({ key: 'carinho' })
-  expect(await ui.find({ type: 'Text', text: /recalibrated/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /happy ♡/ })).toBeDefined()
   await ui.drawn()
   await ui.unmount()
 })
@@ -106,17 +106,17 @@ test('o botão de idioma alterna EN → ES → PT e traduz a faixa na hora', asy
   await ui.press({ key: 'idioma' })
   expect(await label('idioma')).toContain('ES')
   expect(await label('mascote')).toContain('mascota')
-  expect(await label('carinho')).toContain('calibrar')
-  expect(await ui.find({ type: 'Text', text: /ahorro de energía/ })).toBeDefined()
+  expect(await label('carinho')).toContain('caricia')
+  expect(await ui.find({ type: 'Text', text: /dormitando/ })).toBeDefined()
 
   await ui.press({ key: 'idioma' })
   expect(await label('idioma')).toContain('PT')
   expect(await label('mascote')).toContain('mascote')
-  expect(await ui.find({ type: 'Text', text: /modo economia/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /cochilando/ })).toBeDefined()
 
   await ui.press({ key: 'idioma' })
   expect(await label('idioma')).toContain('EN')
-  expect(await ui.find({ type: 'Text', text: /power saving/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /napping/ })).toBeDefined()
   await ui.unmount()
 })
 

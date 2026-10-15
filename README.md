@@ -7,10 +7,10 @@ finishing or failing. 6 themes, 4 mascots, 3 languages, all switchable — and
 you can add your own themes and mascots without touching the code.
 
 ```
-  ┌─┴─┐     ctx ▰▰▰▰▰▰▱▱▱▱ 58%  116k/200k  ·  turn ↑12.1k ↓2.3k ⟲98k
-  │■ ■│     5h ▰▰▱▱▱▱▱▱ 21% 2h14   7d ▰▱▱▱▱▱▱▱ 9% 4d   $1.82
-  └┬─┬┘     ✦ editing meter.ts… 47s  Edit ×2  Bash ×3   t: theme  b: mascot  l: EN  m: min  p: calibrate
-   Bit
+    .✦.     ctx ▰▰▰▰▰▰▱▱▱▱ 58%  116k/200k  ·  turn ↑12.1k ↓2.3k ⟲98k
+  ( ◕‿◕ )   5h ▰▰▱▱▱▱▱▱ 21% 2h14   7d ▰▱▱▱▱▱▱▱ 9% 4d   $1.82
+  /  ~  \   ✦ editing meter.ts… 47s  Edit ×2  Bash ×3   t: theme  b: mascot  l: EN  m: min  p: pet
+   Faísca
 ```
 
 > Independent community project, not affiliated with Anthropic.
@@ -76,10 +76,10 @@ Switch with `b` on the band or `/faisca mascot <id>` (no id: list them all).
 
 | id | Mascot | Look | Button `p` |
 |---|---|---|---|
-| `bit` (default) | **Bit** — maintenance robot | `┌─┴─┐ │■ ■│ └┬─┬┘`, LEDs, antenna, mechanical arms | calibrate |
+| `faisca` (default) | **Faísca** — terminal spirit | `.✦. / ( ◕‿◕ )`, twinkles, throws sparks and melts when context fills up | pet |
+| `bit` | **Bit** — maintenance robot | `┌─┴─┐ │■ ■│ └┬─┬┘`, LEDs, antenna, mechanical arms | calibrate |
 | `rex` | **Rex** — pixel T-rex | `▄▀█▄ / ▄███▀▀`, runs while Claude works | roar |
 | `kage` | **Kage** — hooded ninja | `▄█████▄~ / █ ▬ ▬ █`, slit eyes, blade strikes | salute |
-| `faisca` | **Faísca** — terminal spirit | `.✦. / ( ◕‿◕ )`, twinkles and throws sparks | pet |
 
 Each mascot has its own words per mood (Bit is "compiling" and "overheating",
 Rex is "hunting" and "hibernating"). Want another one? Make your own — see
@@ -305,7 +305,7 @@ hooks/alerts.ts         80/90 thresholds with re-arming
 hooks/state.ts          default preferences and merging
 hooks/custom.ts         user themes and mascots (JSON): validation and examples
 hooks/themes/           theme registry + synthwave, terracota, crt, nord, dracula, gruvbox
-hooks/mascot/           mascot registry (bit, rex, kage, faisca), moods, Raster encoder
+hooks/mascot/           mascot registry (faisca, bit, rex, kage), moods, Raster encoder
 types/index.d.ts        $.state contract
 tests/                  claude plugin test
 ```

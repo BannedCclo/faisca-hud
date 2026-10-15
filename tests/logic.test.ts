@@ -36,16 +36,16 @@ describe('mascotes', () => {
     expect(bad).toEqual([])
   })
 
-  test('registro: robô por padrão, ciclo passa por todos e volta', () => {
-    expect(listMascots().map(m => m.id)).toEqual(['bit', 'rex', 'kage', 'faisca'])
-    expect(getMascot('nao-existe').id).toBe('bit')
-    let id = 'bit'
+  test('registro: Faísca por padrão, ciclo passa por todos e volta', () => {
+    expect(listMascots().map(m => m.id)).toEqual(['faisca', 'bit', 'rex', 'kage'])
+    expect(getMascot('nao-existe').id).toBe('faisca')
+    let id = 'faisca'
     const seen: string[] = []
     for (let i = 0; i < 4; i++) {
       id = nextMascot(id).id
       seen.push(id)
     }
-    expect(seen).toEqual(['rex', 'kage', 'faisca', 'bit'])
+    expect(seen).toEqual(['bit', 'rex', 'kage', 'faisca'])
   })
 
   test('ferramentas viram frases de ação no idioma, com o arquivo', () => {
@@ -333,10 +333,10 @@ describe('temas e raster', () => {
 
   test('mergePrefs tolera lixo e completa métricas novas', () => {
     expect(mergePrefs(null).theme).toBe('synthwave')
-    expect(mergePrefs(null).mascot).toBe('bit')
+    expect(mergePrefs(null).mascot).toBe('faisca')
     const p = mergePrefs({ theme: 'terracota', metrics: { ctx: false } })
     expect(p.theme).toBe('terracota')
-    expect(p.mascot).toBe('bit')
+    expect(p.mascot).toBe('faisca')
     expect(mergePrefs({ mascot: 'rex' }).mascot).toBe('rex')
     expect(p.metrics).toEqual({ ctx: false, turno: true, '5h': true, '7d': true, custo: true })
   })

@@ -13,12 +13,12 @@ export function registerMascot(mascot: Mascot): void {
   else MASCOTS[at] = mascot
 }
 
+registerMascot(faisca)
 registerMascot(bit)
 registerMascot(rex)
 registerMascot(kage)
-registerMascot(faisca)
 
-export const DEFAULT_MASCOT = bit.id
+export const DEFAULT_MASCOT = faisca.id
 
 let custom: readonly Mascot[] = []
 
@@ -36,11 +36,11 @@ export function listMascots(): readonly Mascot[] {
 }
 
 export function getMascot(id: string): Mascot {
-  return listMascots().find(one => one.id === id) ?? bit
+  return listMascots().find(one => one.id === id) ?? faisca
 }
 
 export function nextMascot(id: string): Mascot {
   const all = listMascots()
   const at = all.findIndex(one => one.id === id)
-  return all[(at + 1) % all.length] ?? bit
+  return all[(at + 1) % all.length] ?? faisca
 }
