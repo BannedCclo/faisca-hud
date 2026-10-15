@@ -22,6 +22,8 @@ const RASTER_KEY = 'faisca'
 const TICK_MS = 150
 /** Abaixo disso a faixa cai para uma linha só. */
 const FULL_MIN_COLUMNS = 70
+/** Linhas em branco acima da faixa, para separá-la da resposta do Claude. */
+const TOP_GAP = 1
 const METRICS: readonly FaiscaMetric[] = ['ctx', 'turno', '5h', '7d', 'custo']
 
 const prefs = atom({ plugin: 'faisca-hud', key: 'prefs' } as const, DEFAULT_PREFS)
@@ -418,7 +420,9 @@ export const register: Register = on => {
     live.shownMood = mood
     const label = labelFor(act, mood, mascotDef, lang)
     const input = { usage: u, turn: tr, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now, s }
-    const isCompact = p.isMinimized || e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < 3
+    const isCompact = p.isMinimized || e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < MASCOT_ROWS + TOP_GAP
+    // Sem espaço nem para a linha do medidor e o respiro, o respiro cede.
+    const topGap = e.props.maxRows > TOP_GAP ? TOP_GAP : 0
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
@@ -447,7 +451,7 @@ export const register: Register = on => {
     if (isCompact) {
       live.isRasterShown = false
       return (
-        <Box flexDirection="row" justifyContent="space-between">
+        <Box key="faixa" flexDirection="row" justifyContent="space-between" marginTop={topGap}>
           {drawLine(compactLine(input))}
           <Box flexDirection="row" gap={1}>
             <Button key="tema" plain hotkey="t" label={s.buttons.theme} dimColor onPress={cycleTheme} />
@@ -464,7 +468,7 @@ export const register: Register = on => {
       frameAt(mascotDef, mood, 0).map(row => <Text color={theme.palette.accent}>{row}</Text>)
     )
     // O nome vai embaixo, centrado na largura do mascote, quando a faixa tem a linha a mais.
-    const hasNameRow = e.props.maxRows >= MASCOT_ROWS + 1
+    const hasNameRow = e.props.maxRows >= MASCOT_ROWS + 1 + topGap
     const mascot = !p.hasMascot ? null : (
       <Box flexDirection="column" width={MASCOT_COLUMNS} alignItems="center">
         {figure}
@@ -482,7 +486,7 @@ export const register: Register = on => {
     const petLabel = mascotDef.petLabel !== undefined ? pick(mascotDef.petLabel, lang) : s.buttons.pet
 
     return (
-      <Box flexDirection="row" gap={1}>
+      <Box key="faixa" flexDirection="row" gap={1} marginTop={topGap}>
         {mascot}
         <Box flexDirection="column" flexGrow={1}>
           {lines.map(drawLine)}

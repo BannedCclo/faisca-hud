@@ -129,3 +129,19 @@ test('modo compacto também tem o botão de idioma', async ($, on) => {
   expect((await ui.find({ key: 'tema' }))?.text).toContain('tema')
   await ui.unmount()
 })
+
+test('uma linha em branco separa a faixa da resposta, nos dois layouts', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  mock.store(on)
+  for (const columns of [110, 50]) {
+    const ui = await $.ui.mount({ surface: 'terminal', ...band(columns) })
+    expect(await ui.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
+    await ui.unmount()
+  }
+  // Com uma linha só de espaço, o respiro cede e o medidor continua aparecendo.
+  const tight = band(110)
+  const ui = await $.ui.mount({ surface: 'terminal', ...tight, props: { ...tight.props, maxRows: 1 } })
+  expect(await ui.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 0 } })
+  expect(await ui.find({ type: 'Text', text: /ctx/ })).toBeDefined()
+  await ui.unmount()
+})
