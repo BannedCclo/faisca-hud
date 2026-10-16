@@ -56,6 +56,25 @@ export function mascotCells(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick
 const SVG_CELL_W = 9
 const SVG_CELL_H = 17
 
+/** Blocos Unicode como frações [x, y, largura, altura] da célula: retângulos encaixam sem vão, fonte não. */
+const BLOCKS: Record<string, readonly (readonly [number, number, number, number])[]> = {
+  '█': [[0, 0, 1, 1]],
+  '▀': [[0, 0, 1, 0.5]],
+  '▄': [[0, 0.5, 1, 0.5]],
+  '▌': [[0, 0, 0.5, 1]],
+  '▐': [[0.5, 0, 0.5, 1]],
+  '▘': [[0, 0, 0.5, 0.5]],
+  '▝': [[0.5, 0, 0.5, 0.5]],
+  '▖': [[0, 0.5, 0.5, 0.5]],
+  '▗': [[0.5, 0.5, 0.5, 0.5]],
+  '▛': [[0, 0, 1, 0.5], [0, 0.5, 0.5, 0.5]],
+  '▜': [[0, 0, 1, 0.5], [0.5, 0.5, 0.5, 0.5]],
+  '▙': [[0, 0.5, 1, 0.5], [0, 0, 0.5, 0.5]],
+  '▟': [[0, 0.5, 1, 0.5], [0.5, 0, 0.5, 0.5]],
+  '▚': [[0, 0, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
+  '▞': [[0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5]],
+}
+
 function escapeXml(ch: string): string {
   return ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch
 }
@@ -75,6 +94,14 @@ export function mascotSvg(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick: 
       if (ch === ' ') return
       const part = partOf(mascot, ch)
       const color = own?.[part] ?? theme.mascotColor({ mascot: mascot.id, part, mood, row, col, rows: MASCOT_ROWS, tick })
+      const blocks = BLOCKS[ch]
+      if (blocks) {
+        // +0.5 de sobra em cada rect fecha a costura de antialiasing entre células.
+        for (const [fx, fy, fw, fh] of blocks) {
+          glyphs += `<rect x="${col * SVG_CELL_W + fx * SVG_CELL_W}" y="${row * SVG_CELL_H + fy * SVG_CELL_H}" width="${fw * SVG_CELL_W + 0.5}" height="${fh * SVG_CELL_H + 0.5}" fill="${color}"/>`
+        }
+        return
+      }
       const x = col * SVG_CELL_W + SVG_CELL_W / 2
       const y = row * SVG_CELL_H + SVG_CELL_H - 4
       glyphs += `<text x="${x}" y="${y}" fill="${color}">${escapeXml(ch)}</text>`
@@ -82,6 +109,6 @@ export function mascotSvg(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick: 
   })
   const source =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" ` +
-    `font-family="Consolas,Menlo,'DejaVu Sans Mono',monospace" font-size="14" font-weight="bold" text-anchor="middle">${glyphs}</svg>`
+    `font-family="Consolas,Menlo,'DejaVu Sans Mono',monospace" font-size="14" font-weight="bold" text-anchor="middle" shape-rendering="crispEdges">${glyphs}</svg>`
   return { source, width, height }
 }
