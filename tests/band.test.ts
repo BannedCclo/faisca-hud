@@ -24,6 +24,7 @@ test('a faixa desenha medidor, mascote e botões em toda superfície', async ($,
     expect(await ui.find({ key: 'tema' })).toBeDefined()
     expect(await ui.find({ key: 'carinho' })).toBeDefined()
     if (surface === 'terminal') expect(await ui.find({ type: 'Raster', key: 'faisca' })).toBeDefined()
+    else expect(await ui.find({ type: 'Svg' })).toBeDefined()
     expect((await ui.find({ type: 'Text', text: /^Faísca$/ }))?.text).toBe('Faísca')
     await ui.unmount()
   }

@@ -52,3 +52,36 @@ export function mascotCells(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick
     return hexToInt(own?.[part] ?? theme.mascotColor({ mascot: mascot.id, part, mood, row, col, rows: MASCOT_ROWS, tick }))
   })
 }
+
+const SVG_CELL_W = 9
+const SVG_CELL_H = 17
+
+function escapeXml(ch: string): string {
+  return ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch
+}
+
+/**
+ * O quadro como SVG, para superfícies sem `Raster` (desktop): cada caractere
+ * vai na sua célula, então o alinhamento não depende da fonte da página.
+ */
+export function mascotSvg(theme: Theme, mascot: Mascot, mood: FaiscaMood, tick: number): { source: string; width: number; height: number } {
+  const frame = frameAt(mascot, mood, tick)
+  const own = mascot.colors?.[theme.id]
+  const width = MASCOT_COLUMNS * SVG_CELL_W
+  const height = MASCOT_ROWS * SVG_CELL_H
+  let glyphs = ''
+  frame.forEach((line, row) => {
+    Array.from(line).forEach((ch, col) => {
+      if (ch === ' ') return
+      const part = partOf(mascot, ch)
+      const color = own?.[part] ?? theme.mascotColor({ mascot: mascot.id, part, mood, row, col, rows: MASCOT_ROWS, tick })
+      const x = col * SVG_CELL_W + SVG_CELL_W / 2
+      const y = row * SVG_CELL_H + SVG_CELL_H - 4
+      glyphs += `<text x="${x}" y="${y}" fill="${color}">${escapeXml(ch)}</text>`
+    })
+  })
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" ` +
+    `font-family="Consolas,Menlo,'DejaVu Sans Mono',monospace" font-size="14" font-weight="bold" text-anchor="middle">${glyphs}</svg>`
+  return { source, width, height }
+}

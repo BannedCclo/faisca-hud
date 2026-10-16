@@ -11,7 +11,7 @@ import {
 import { MASCOT_COLUMNS, MASCOT_ROWS, frameAt } from './mascot/clip.ts'
 import { getMascot, listMascots, nextMascot, setCustomMascots } from './mascot/index.ts'
 import { effectiveMood, fileOf, labelFor, moodForTool } from './mascot/mood.ts'
-import { mascotCells } from './mascot/raster.ts'
+import { mascotCells, mascotSvg } from './mascot/raster.ts'
 import { compactLine, fullLines, type Line } from './meter.ts'
 import { DEFAULT_PREFS, EMPTY_TURN, mergePrefs } from './state.ts'
 import { getTheme, listThemes, nextTheme, setCustomThemes } from './themes/index.ts'
@@ -420,13 +420,17 @@ export const register: Register = on => {
     live.shownMood = mood
     const label = labelFor(act, mood, mascotDef, lang)
     const input = { usage: u, turn: tr, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now, s }
-    const isCompact = p.isMinimized || e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < MASCOT_ROWS + TOP_GAP
+    // Só o terminal mede o espaço em células; no desktop o tamanho vem da página.
+    const isTerminal = e.surface === 'terminal'
+    const isCompact = p.isMinimized || (isTerminal && (e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < MASCOT_ROWS + TOP_GAP))
     // Sem espaço nem para a linha do medidor e o respiro, o respiro cede.
-    const topGap = e.props.maxRows > TOP_GAP ? TOP_GAP : 0
+    const topGap = !isTerminal || e.props.maxRows > TOP_GAP ? TOP_GAP : 0
 
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
-    const Raster = 'Raster' in els ? els.Raster : undefined
+    // Só o terminal desenha `Raster`; nas outras a chave pode existir e não pintar nada.
+    const Raster = isTerminal && 'Raster' in els ? els.Raster : undefined
+    const Svg = !isTerminal && 'Svg' in els ? els.Svg : undefined
 
     const drawLine = (line: Line) => (
       <Text wrap="truncate-end">
@@ -464,11 +468,13 @@ export const register: Register = on => {
 
     const figure = Raster !== undefined ? (
       <Raster key={RASTER_KEY} columns={MASCOT_COLUMNS} rows={MASCOT_ROWS} cells={mascotCells(theme, mascotDef, mood, live.tick)} />
+    ) : Svg !== undefined ? (
+      <Svg key="mascote-svg" alt={mascotDef.name} {...mascotSvg(theme, mascotDef, mood, live.tick)} />
     ) : (
       frameAt(mascotDef, mood, 0).map(row => <Text color={theme.palette.accent}>{row}</Text>)
     )
     // O nome vai embaixo, centrado na largura do mascote, quando a faixa tem a linha a mais.
-    const hasNameRow = e.props.maxRows >= MASCOT_ROWS + 1 + topGap
+    const hasNameRow = !isTerminal || e.props.maxRows >= MASCOT_ROWS + 1 + topGap
     const mascot = !p.hasMascot ? null : (
       <Box flexDirection="column" width={MASCOT_COLUMNS} alignItems="center">
         {figure}
