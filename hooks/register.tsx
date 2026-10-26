@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, TurnUsage } from 'claude-code'
 
-import type { FaiscaActivity, FaiscaDetail, FaiscaMetric, FaiscaMood, FaiscaPrefs, FaiscaUsage } from '../types'
+import type { FaiscaActivity, FaiscaDetail, FaiscaMetric, FaiscaMood, FaiscaPrefs, FaiscaSpend, FaiscaUsage } from '../types'
 import { checkAlerts, readings } from './alerts.ts'
 import { EXAMPLE_MASCOT, EXAMPLE_THEME, loadCustom, type CustomFile } from './custom.ts'
 import {
@@ -24,6 +24,8 @@ const TICK_MS = 150
 const FULL_MIN_COLUMNS = 70
 /** Linhas em branco acima da faixa, para separá-la da resposta do Claude. */
 const TOP_GAP = 1
+/** De quantos em quantos ticks a faixa relê o gasto das outras sessões. */
+const SPEND_REFRESH_TICKS = 40
 const METRICS: readonly FaiscaMetric[] = ['ctx', 'turno', '5h', '7d', 'custo']
 
 const prefs = atom({ plugin: 'faisca-hud', key: 'prefs' } as const, DEFAULT_PREFS)
@@ -143,9 +145,45 @@ async function measure($: $, m: Parameters<typeof toUsage>[0]): Promise<void> {
   for (const one of fired) $.ui.toast(a.crossed(a.names[one.key] ?? one.key, Math.round(one.percent), one.level))
 }
 
+/** O arquivo que todas as sessões dividem: quanto já se gastou na janela de 5h. */
+async function spendPath($: $): Promise<string> {
+  return `${custom.dir || (await customDir($))}/gasto-5h.json`
+}
+
+async function readLedger($: $): Promise<FaiscaSpend> {
+  try {
+    const path = await spendPath($)
+    return (await $.fs.exists(path)) ? mergeSpend(JSON.parse(String(await $.fs.read(path)))) : EMPTY_SPEND
+  } catch {
+    return EMPTY_SPEND
+  }
+}
+
+/** Traz para a faixa o que as outras sessões gastaram; redesenha se mudou. */
+async function refreshSpend($: $): Promise<void> {
+  const ledger = await readLedger($)
+  const before = await read($, spend)
+  if (ledger.resetsAt === before.resetsAt && ledger.tokens === before.tokens) return
+  await update($, spend, () => ledger)
+  $.ui.invalidate('ui.render')
+}
+
+/** Soma um passo desta sessão ao arquivo comum (lê, soma, grava: o valor vem dele, não da memória). */
+async function recordSpend($: $, resetsAt: string | undefined, u: TurnUsage): Promise<void> {
+  try {
+    const next = addSpend(await readLedger($), resetsAt, u)
+    await $.fs.write(await spendPath($), JSON.stringify(next))
+    await update($, spend, () => next)
+  } catch {
+    // sem o arquivo, a faixa só deixa de somar: o resto segue
+  }
+}
+
 /** Um tick do animador: humor efetivo, redesenho se mudou, e o quadro novo. */
 async function tick($: $): Promise<void> {
   live.tick += 1
+  // Outras sessões gastam na mesma janela: a cada ~6s relê o arquivo comum.
+  if (live.tick % SPEND_REFRESH_TICKS === 0) void refreshSpend($).catch(() => {})
   const now = await $.clock.now()
   const mood = effectiveMood(live.activity, now, live.ctxPercent, live.isWorking)
   // O relógio do turno anda de segundo em segundo: redesenha quando o segundo vira.
@@ -311,10 +349,9 @@ export const register: Register = on => {
       live.detectedLang = 'en'
     }
     const saved = mergePrefs(await $.store.get('prefs'))
-    const saved5h = await $.store.get('spend')
     await loadCustomFromDisk($, langOf(saved))
     await update($, prefs, () => saved)
-    await update($, spend, () => mergeSpend(saved5h))
+    await refreshSpend($)
     live.theme = getTheme(saved.theme)
     live.mascot = getMascot(saved.mascot)
     await setMood($, 'idle')
@@ -357,8 +394,7 @@ export const register: Register = on => {
       await update($, turn, x => addStep(x, u))
       // A janela de 5h é a do último `session.measure`; sem ela, a contagem fica sem data.
       const resetsAt = (await read($, usage))?.fiveHour?.resetsAt
-      await update($, spend, x => addSpend(x, resetsAt, u))
-      await $.store.set('spend', await read($, spend))
+      await recordSpend($, resetsAt, u)
     }
     return result
   })

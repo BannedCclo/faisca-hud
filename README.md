@@ -56,7 +56,7 @@ languages (`/faisca theme`, `/faisca tema`, …).
 | `ctx` — context window (% and tokens/limit) | `$.session.usage()` / `session.measure` |
 | `turn` — ↑ input (+ cache writes), ↓ output, ⟲ cache reads | every `turn.step` live; `turn.complete` sets the final total |
 | `5h` / `7d` — subscription limits + time until reset | `rateLimits` of the latest response |
-| `5h` also shows the tokens spent in the current 5h window (input + cache write + output) | summed per request, restarts when `resetsAt` changes |
+| `5h` also shows the tokens spent in the current 5h window (input + cache write + output) | summed per request by every chat that runs the plugin (shared file `faisca-hud/gasto-5h.json`), restarts when `resetsAt` changes |
 | `cost` — session cost in US$ | `cost.usd` |
 
 Bars change color at 70% and 90%. Toasts warn when you cross 80% and 90%

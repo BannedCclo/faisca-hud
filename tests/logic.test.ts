@@ -281,6 +281,9 @@ describe('uso', () => {
     expect(a).toEqual({ resetsAt: 'W1', tokens: 70 })
     expect(addSpend(a, 'W1', step).tokens).toBe(140)
     expect(addSpend(a, 'W2', step)).toEqual({ resetsAt: 'W2', tokens: 70 })
+    // medida atrasada (janela mais antiga que a guardada) soma, sem zerar
+    const late = addSpend({ resetsAt: '2026-10-15T15:00:00Z', tokens: 100 }, '2026-10-15T10:00:00Z', step)
+    expect(late).toEqual({ resetsAt: '2026-10-15T15:00:00Z', tokens: 170 })
     expect(spendNow(a, 'W1')).toBe(70)
     expect(spendNow(a, 'W2')).toBe(0)
     expect(mergeSpend({ tokens: -1 })).toEqual(EMPTY_SPEND)

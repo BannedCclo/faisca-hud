@@ -41,9 +41,16 @@ export function addStep(turn: FaiscaTurn, u: TurnUsage): FaiscaTurn {
  * diferente do guardado), a contagem recomeça do zero.
  */
 export function addSpend(prev: FaiscaSpend, resetsAt: string | undefined, u: TurnUsage): FaiscaSpend {
+  // Uma sessão com a medida atrasada não zera a janela que outra já abriu.
+  const isOlder = resetsAt !== undefined && prev.resetsAt !== undefined && Date.parse(resetsAt) < Date.parse(prev.resetsAt)
+  if (isOlder) return { ...prev, tokens: prev.tokens + stepTokens(u) }
   const base = prev.resetsAt === resetsAt ? prev.tokens : 0
-  const tokens = base + u.input_tokens + u.output_tokens + u.cache_creation_input_tokens
+  const tokens = base + stepTokens(u)
   return resetsAt === undefined ? { tokens } : { resetsAt, tokens }
+}
+
+function stepTokens(u: TurnUsage): number {
+  return u.input_tokens + u.output_tokens + u.cache_creation_input_tokens
 }
 
 /** Tokens gastos na janela atual; 0 se o que está guardado é de uma janela que já passou. */
