@@ -1,4 +1,4 @@
-import type { FaiscaPrefs, FaiscaTurn } from '../types'
+import type { FaiscaPrefs, FaiscaSpend, FaiscaTurn } from '../types'
 import { DEFAULT_MASCOT } from './mascot/index.ts'
 import { DEFAULT_THEME } from './themes/index.ts'
 
@@ -19,6 +19,16 @@ export const EMPTY_TURN: FaiscaTurn = {
   cacheRead: 0,
   cacheWrite: 0,
   tools: {},
+}
+
+export const EMPTY_SPEND: FaiscaSpend = { tokens: 0 }
+
+/** Lê o gasto da janela de 5h guardado no disco, ignorando o que não for válido. */
+export function mergeSpend(saved: unknown): FaiscaSpend {
+  if (typeof saved !== 'object' || saved === null) return EMPTY_SPEND
+  const s = saved as Partial<FaiscaSpend>
+  if (typeof s.tokens !== 'number' || !Number.isFinite(s.tokens) || s.tokens < 0) return EMPTY_SPEND
+  return typeof s.resetsAt === 'string' ? { resetsAt: s.resetsAt, tokens: s.tokens } : { tokens: s.tokens }
 }
 
 /** Junta preferências salvas (possivelmente antigas ou parciais) com o padrão. */

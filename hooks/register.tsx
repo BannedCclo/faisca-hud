@@ -13,9 +13,9 @@ import { getMascot, listMascots, nextMascot, setCustomMascots } from './mascot/i
 import { effectiveMood, fileOf, labelFor, moodForTool } from './mascot/mood.ts'
 import { mascotCells, mascotSvg } from './mascot/raster.ts'
 import { compactLine, fullLines, type Line } from './meter.ts'
-import { DEFAULT_PREFS, EMPTY_TURN, mergePrefs } from './state.ts'
+import { DEFAULT_PREFS, EMPTY_SPEND, EMPTY_TURN, mergePrefs, mergeSpend } from './state.ts'
 import { getTheme, listThemes, nextTheme, setCustomThemes } from './themes/index.ts'
-import { addStep, toUsage } from './usage.ts'
+import { addSpend, addStep, spendNow, toUsage } from './usage.ts'
 
 const COMMAND = 'faisca'
 const RASTER_KEY = 'faisca'
@@ -29,6 +29,7 @@ const METRICS: readonly FaiscaMetric[] = ['ctx', 'turno', '5h', '7d', 'custo']
 const prefs = atom({ plugin: 'faisca-hud', key: 'prefs' } as const, DEFAULT_PREFS)
 const usage = atom({ plugin: 'faisca-hud', key: 'usage' } as const, null as FaiscaUsage | null)
 const turn = atom({ plugin: 'faisca-hud', key: 'turn' } as const, EMPTY_TURN)
+const spend = atom({ plugin: 'faisca-hud', key: 'spend' } as const, EMPTY_SPEND)
 const activity = atom({ plugin: 'faisca-hud', key: 'activity' } as const, { mood: 'idle', since: 0 } as FaiscaActivity)
 const alerted = atom({ plugin: 'faisca-hud', key: 'alerted' } as const, {} as Record<string, number>)
 
@@ -310,8 +311,10 @@ export const register: Register = on => {
       live.detectedLang = 'en'
     }
     const saved = mergePrefs(await $.store.get('prefs'))
+    const saved5h = await $.store.get('spend')
     await loadCustomFromDisk($, langOf(saved))
     await update($, prefs, () => saved)
+    await update($, spend, () => mergeSpend(saved5h))
     live.theme = getTheme(saved.theme)
     live.mascot = getMascot(saved.mascot)
     await setMood($, 'idle')
@@ -350,7 +353,13 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
     const u = result.usage
-    if (e.agentId === undefined && u !== null) await update($, turn, x => addStep(x, u))
+    if (e.agentId === undefined && u !== null) {
+      await update($, turn, x => addStep(x, u))
+      // A janela de 5h é a do último `session.measure`; sem ela, a contagem fica sem data.
+      const resetsAt = (await read($, usage))?.fiveHour?.resetsAt
+      await update($, spend, x => addSpend(x, resetsAt, u))
+      await $.store.set('spend', await read($, spend))
+    }
     return result
   })
 
@@ -401,7 +410,7 @@ export const register: Register = on => {
       live.isRasterShown = false
       return next(e)
     }
-    const [p, u, tr, act] = await Promise.all([read($, prefs), read($, usage), read($, turn), read($, activity)])
+    const [p, u, tr, act, sp] = await Promise.all([read($, prefs), read($, usage), read($, turn), read($, activity), read($, spend)])
     const now = await $.clock.now()
     const lang = langOf(p)
     const s = t(lang)
@@ -419,7 +428,7 @@ export const register: Register = on => {
     const mood = effectiveMood(act, now, u?.ctxPercent, e.props.isWorking)
     live.shownMood = mood
     const label = labelFor(act, mood, mascotDef, lang)
-    const input = { usage: u, turn: tr, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now, s }
+    const input = { usage: u, turn: tr, mood, mascot: mascotDef, label, isWorking: e.props.isWorking, prefs: p, theme, now, s, spend5h: spendNow(sp, u?.fiveHour?.resetsAt) }
     // Só o terminal mede o espaço em células; no desktop o tamanho vem da página.
     const isTerminal = e.surface === 'terminal'
     const isCompact = p.isMinimized || (isTerminal && (e.props.bodyColumns < FULL_MIN_COLUMNS || e.props.maxRows < MASCOT_ROWS + TOP_GAP))

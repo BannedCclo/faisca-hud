@@ -1,6 +1,6 @@
 import type { SessionContextUsage, SessionCost, SessionRateLimit, TurnUsage } from 'claude-code'
 
-import type { FaiscaTurn, FaiscaUsage } from '../types'
+import type { FaiscaSpend, FaiscaTurn, FaiscaUsage } from '../types'
 
 /** O que `$.session.usage()` e `session.measure` trazem, no formato da faixa. */
 export function toUsage(m: {
@@ -34,6 +34,21 @@ export function addStep(turn: FaiscaTurn, u: TurnUsage): FaiscaTurn {
     cacheRead: turn.cacheRead + u.cache_read_input_tokens,
     cacheWrite: turn.cacheWrite + u.cache_creation_input_tokens,
   }
+}
+
+/**
+ * Soma o que um passo custou à janela de 5h. Se a janela mudou (`resetsAt`
+ * diferente do guardado), a contagem recomeça do zero.
+ */
+export function addSpend(prev: FaiscaSpend, resetsAt: string | undefined, u: TurnUsage): FaiscaSpend {
+  const base = prev.resetsAt === resetsAt ? prev.tokens : 0
+  const tokens = base + u.input_tokens + u.output_tokens + u.cache_creation_input_tokens
+  return resetsAt === undefined ? { tokens } : { resetsAt, tokens }
+}
+
+/** Tokens gastos na janela atual; 0 se o que está guardado é de uma janela que já passou. */
+export function spendNow(spend: FaiscaSpend, resetsAt: string | undefined): number {
+  return spend.resetsAt === resetsAt ? spend.tokens : 0
 }
 
 /** 950 → "950", 12_100 → "12.1k", 1_250_000 → "1.25M". */

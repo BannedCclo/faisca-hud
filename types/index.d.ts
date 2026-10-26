@@ -47,6 +47,15 @@ export type FaiscaTurn = {
 }
 
 /**
+ * Tokens gastos (entrada + escrita de cache + saída) na janela de 5h que
+ * termina em `resetsAt`; quando a janela vira, a contagem recomeça.
+ */
+export type FaiscaSpend = {
+  resetsAt?: string
+  tokens: number
+}
+
+/**
  * O que causou o humor, para a faixa escrever no idioma da hora: guarda o
  * fato (ferramenta, arquivo), não o texto pronto.
  */
@@ -71,6 +80,7 @@ declare module 'claude-code' {
       prefs: FaiscaPrefs
       usage: FaiscaUsage | null
       turn: FaiscaTurn
+      spend: FaiscaSpend
       activity: FaiscaActivity
       alerted: Record<string, number>
     }

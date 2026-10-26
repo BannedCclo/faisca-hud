@@ -1,6 +1,6 @@
 {
   "name": "faisca-hud",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Band above the Claude Code prompt: always-visible token meter, 6 themes and animated ASCII mascots that react to Claude — in Portuguese, English and Spanish, plus your own themes and mascots in JSON.",
   "author": {
     "name": "BannedCclo"

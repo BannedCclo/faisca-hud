@@ -19,6 +19,8 @@ export type MeterInput = {
   prefs: FaiscaPrefs
   theme: Theme
   now: number
+  /** Tokens gastos na janela de 5h atual; sem valor, a faixa não os mostra. */
+  spend5h?: number
   /** Os textos do idioma da faixa. */
   s: Strings
 }
@@ -80,6 +82,9 @@ function limitsLine(m: MeterInput): Line {
     line.push(dim(theme, `${name} `), ...bar(theme, l.percent, 8), pct(theme, l.percent))
     const reset = formatReset(l.resetsAt, now)
     if (reset) line.push(dim(theme, ` ${reset}`))
+    if (name === '5h' && m.spend5h !== undefined) {
+      line.push(dim(theme, ' · '), { text: `${formatTokens(m.spend5h)} ${m.s.meter.tokens}`, color: theme.palette.accent2 })
+    }
   }
   limit('5h', usage?.fiveHour)
   limit('7d', usage?.sevenDay)

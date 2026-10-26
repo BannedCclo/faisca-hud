@@ -71,7 +71,7 @@ export type Strings = {
   verbs: Record<Verb, string>
   metricNames: Record<'ctx' | 'turno' | '5h' | '7d' | 'custo', string>
   allWord: string
-  meter: { turn: string; limitsPending: string; doneIn: string }
+  meter: { turn: string; tokens: string; limitsPending: string; doneIn: string }
   buttons: { theme: string; mascot: string; pet: string }
   moods: Record<FaiscaMood, string>
   tools: {
@@ -159,7 +159,7 @@ const pt: Strings = {
   },
   metricNames: { ctx: 'ctx', turno: 'turno', '5h': '5h', '7d': '7d', custo: 'custo' },
   allWord: 'todas',
-  meter: { turn: 'turno', limitsPending: 'limites 5h/7d aparecem após a 1ª resposta', doneIn: 'em ' },
+  meter: { turn: 'turno', tokens: 'tokens', limitsPending: 'limites 5h/7d aparecem após a 1ª resposta', doneIn: 'em ' },
   buttons: { theme: 'tema', mascot: 'mascote', pet: 'interagir' },
   moods: {
     idle: 'à toa', sleep: 'cochilando', thinking: 'pensando', tool: 'mexendo', writing: 'escrevendo',
@@ -270,7 +270,7 @@ const en: Strings = {
   },
   metricNames: { ctx: 'ctx', turno: 'turn', '5h': '5h', '7d': '7d', custo: 'cost' },
   allWord: 'all',
-  meter: { turn: 'turn', limitsPending: '5h/7d limits show up after the first reply', doneIn: 'in ' },
+  meter: { turn: 'turn', tokens: 'tokens', limitsPending: '5h/7d limits show up after the first reply', doneIn: 'in ' },
   buttons: { theme: 'theme', mascot: 'mascot', pet: 'interact' },
   moods: {
     idle: 'idle', sleep: 'napping', thinking: 'thinking', tool: 'working', writing: 'writing',
@@ -381,7 +381,7 @@ const es: Strings = {
   },
   metricNames: { ctx: 'ctx', turno: 'turno', '5h': '5h', '7d': '7d', custo: 'costo' },
   allWord: 'todo',
-  meter: { turn: 'turno', limitsPending: 'los límites 5h/7d aparecen tras la 1.ª respuesta', doneIn: 'en ' },
+  meter: { turn: 'turno', tokens: 'tokens', limitsPending: 'los límites 5h/7d aparecen tras la 1.ª respuesta', doneIn: 'en ' },
   buttons: { theme: 'tema', mascot: 'mascota', pet: 'interactuar' },
   moods: {
     idle: 'ocioso', sleep: 'dormitando', thinking: 'pensando', tool: 'trabajando', writing: 'escribiendo',

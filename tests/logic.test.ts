@@ -9,9 +9,9 @@ import { LANGS, detectLang, nextLang, pick, t, verbOf, type Lang } from '../hook
 import { encodeCells, mascotCells, toBase64 } from '../hooks/mascot/raster.ts'
 import { mergePrefs } from '../hooks/state.ts'
 import { getTheme, listThemes, mix, nextTheme, sample } from '../hooks/themes/index.ts'
-import { addStep, formatDuration, formatReset, formatTokens, formatTools, toUsage } from '../hooks/usage.ts'
+import { addSpend, addStep, spendNow, formatDuration, formatReset, formatTokens, formatTools, toUsage } from '../hooks/usage.ts'
 import { fullLines } from '../hooks/meter.ts'
-import { EMPTY_TURN } from '../hooks/state.ts'
+import { EMPTY_SPEND, EMPTY_TURN, mergeSpend } from '../hooks/state.ts'
 
 const MOODS: FaiscaMood[] = ['idle', 'sleep', 'thinking', 'tool', 'writing', 'happy', 'error', 'melting', 'pet']
 
@@ -273,6 +273,29 @@ describe('uso', () => {
     const step = { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 30, cache_creation_input_tokens: 40, model: 'x' }
     const t = addStep(addStep(EMPTY_TURN, step), step)
     expect(t).toMatchObject({ input: 20, output: 40, cacheRead: 60, cacheWrite: 80 })
+  })
+
+  test('addSpend acumula na janela de 5h e recomeça quando ela vira', () => {
+    const step = { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 999, cache_creation_input_tokens: 40, model: 'x' }
+    const a = addSpend(EMPTY_SPEND, 'W1', step)
+    expect(a).toEqual({ resetsAt: 'W1', tokens: 70 })
+    expect(addSpend(a, 'W1', step).tokens).toBe(140)
+    expect(addSpend(a, 'W2', step)).toEqual({ resetsAt: 'W2', tokens: 70 })
+    expect(spendNow(a, 'W1')).toBe(70)
+    expect(spendNow(a, 'W2')).toBe(0)
+    expect(mergeSpend({ tokens: -1 })).toEqual(EMPTY_SPEND)
+    expect(mergeSpend({ resetsAt: 'W1', tokens: 5 })).toEqual({ resetsAt: 'W1', tokens: 5 })
+  })
+
+  test('a linha dos limites mostra os tokens da janela de 5h', () => {
+    const m = {
+      usage: { ctxWindow: 200_000, fiveHour: { percent: 21 } },
+      turn: EMPTY_TURN, mood: 'idle' as const, mascot: getMascot('bit'), label: 'x', isWorking: false,
+      prefs: mergePrefs(null), theme: getTheme('synthwave'), now: 0, s: t('pt'), spend5h: 1_250_000,
+    }
+    const text = fullLines(m).map(l => l.map(s => s.text).join('')).join('\n')
+    expect(text).toContain('5h')
+    expect(text).toContain('1.25M tokens')
   })
 })
 
